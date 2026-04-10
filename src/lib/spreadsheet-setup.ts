@@ -24,16 +24,16 @@ export async function initializeSpreadsheet(
   settings: UserSettings,
   categories: Category[]
 ): Promise<void> {
-  const monthColumns = generateMonthColumns(settings.startDate, 18);
+  const monthColumns = generateMonthColumns(settings.start_date, 18);
 
   // Write config sheet
   const configData = [
     ['Property', 'Value'],
-    ['Company Name', settings.companyName],
-    ['Start Date', settings.startDate],
-    ['VAT Sales', String(settings.vatSales)],
-    ['VAT Expenses', String(settings.vatExpenses)],
-    ['Forecast Mode', settings.forecastMode],
+    ['Company Name', settings.company_name],
+    ['Start Date', settings.start_date],
+    ['VAT Sales', String(settings.vat_sales)],
+    ['VAT Expenses', String(settings.vat_expenses)],
+    ['Forecast Mode', settings.forecast_mode],
   ];
 
   await updateSheetData(accessToken, spreadsheetId, 'config!A1', configData);

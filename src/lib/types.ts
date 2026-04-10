@@ -38,15 +38,16 @@ export interface CurrencyRate {
 
 export interface UserSettings {
   id: string;
-  userId: string;
-  spreadsheetId: string;
-  companyName: string;
-  startDate: string; // ISO 8601 format
-  vatSales: number; // percentage
-  vatExpenses: number; // percentage
-  forecastMode: 'SIMPLE' | 'ADVANCED';
-  createdAt: string;
-  updatedAt: string;
+  user_id: string;
+  spreadsheet_id: string;
+  company_name: string;
+  start_date: string; // ISO 8601 format
+  vat_sales: number; // decimal (e.g. 0.21)
+  vat_expenses: number; // decimal (e.g. 0.21)
+  forecast_mode: 'SIMPLE' | 'ADVANCED';
+  created_at: string;
+  updated_at: string;
+  email?: string; // from auth, not DB
 }
 
 export interface CashflowRow {

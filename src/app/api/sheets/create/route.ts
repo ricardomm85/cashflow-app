@@ -39,15 +39,15 @@ export async function POST(request: NextRequest) {
     // Prepare user settings
     const userSettings: UserSettings = {
       id: '',
-      userId: user.id,
-      spreadsheetId,
-      companyName,
-      startDate,
-      vatSales: vatSales || 21,
-      vatExpenses: vatExpenses || 21,
-      forecastMode: 'SIMPLE',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      user_id: user.id,
+      spreadsheet_id: spreadsheetId,
+      company_name: companyName,
+      start_date: startDate,
+      vat_sales: vatSales || 21,
+      vat_expenses: vatExpenses || 21,
+      forecast_mode: 'SIMPLE',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
 
     // Initialize spreadsheet structure
