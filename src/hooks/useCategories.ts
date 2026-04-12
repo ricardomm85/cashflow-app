@@ -9,14 +9,8 @@ export function useCategories() {
   const fetchCategories = useCallback(async (spreadsheetId: string) => {
     setLoading(true);
     try {
-      const response = await fetch('/api/sheets/read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          spreadsheetId,
-          sheetName: 'categories',
-        }),
-      });
+      const params = new URLSearchParams({ spreadsheetId, range: 'categories!A:D' });
+      const response = await fetch(`/api/sheets/read?${params}`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch categories');
@@ -26,7 +20,7 @@ export function useCategories() {
 
       // Parse categories from sheet format
       // Expected format: [type, group, subgroup, active]
-      const parsedCategories: Category[] = (data.values || [])
+      const parsedCategories: Category[] = (data.data || [])
         .slice(1) // Skip header
         .map((row: any[]) => ({
           type: (row[0] || 'cobros').toLowerCase() as CategoryType,

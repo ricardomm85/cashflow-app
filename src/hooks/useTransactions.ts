@@ -8,14 +8,8 @@ export function useTransactions() {
   const fetchTransactions = useCallback(async (spreadsheetId: string) => {
     setLoading(true);
     try {
-      const response = await fetch('/api/sheets/read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          spreadsheetId,
-          sheetName: 'transactions',
-        }),
-      });
+      const params = new URLSearchParams({ spreadsheetId, range: 'transactions!A:I' });
+      const response = await fetch(`/api/sheets/read?${params}`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch transactions');
@@ -25,7 +19,7 @@ export function useTransactions() {
 
       // Parse transactions from sheet format
       // Expected format: [fecha, banco, descripción, importe, divisa, tipo, grupo, subgrupo, exchangeRate]
-      const parsedTransactions: Transaction[] = (data.values || [])
+      const parsedTransactions: Transaction[] = (data.data || [])
         .slice(1) // Skip header
         .map((row: any[], index: number) => {
           const amount = parseFloat(row[3]) || 0;
