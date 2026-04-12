@@ -16,7 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   LayoutDashboard,
   ArrowLeftRight,
@@ -26,6 +26,7 @@ import {
   DollarSign,
   Settings,
   LogOut,
+  Sheet,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
@@ -53,6 +54,9 @@ export default function AppLayout({
 }) {
   const [user, setUser] = useState<any>(null);
   const [email, setEmail] = useState<string>('');
+  const [name, setName] = useState<string>('');
+  const [avatarUrl, setAvatarUrl] = useState<string>('');
+  const [spreadsheetId, setSpreadsheetId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
@@ -71,6 +75,15 @@ export default function AppLayout({
 
       setUser(user);
       setEmail(user.email || '');
+      setName(user.user_metadata?.full_name || user.user_metadata?.name || '');
+      setAvatarUrl(user.user_metadata?.avatar_url || user.user_metadata?.picture || '');
+
+      const settingsRes = await fetch('/api/user/settings');
+      if (settingsRes.ok) {
+        const settings = await settingsRes.json();
+        setSpreadsheetId(settings.spreadsheet_id || '');
+      }
+
       setIsLoading(false);
     };
 
@@ -112,19 +125,31 @@ export default function AppLayout({
                 </Link>
               );
             })}
+            {spreadsheetId && (
+              <a
+                href={`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <Sheet className="w-5 h-5" />
+                <span>Ver en Google Sheets</span>
+              </a>
+            )}
           </nav>
         </SidebarContent>
         <SidebarFooter className="border-t px-4 py-4">
           <DropdownMenu>
             <DropdownMenuTrigger className="w-full flex items-center gap-3 p-2 hover:bg-slate-100 rounded-lg transition-colors text-left">
                 <Avatar className="h-8 w-8">
+                  {avatarUrl && <AvatarImage src={avatarUrl} alt={name || email} referrerPolicy="no-referrer" />}
                   <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-semibold">
-                    {email.charAt(0).toUpperCase()}
+                    {(name || email).charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 text-left min-w-0">
                   <p className="text-xs font-medium text-slate-900 truncate">
-                    {email.split('@')[0]}
+                    {name || email.split('@')[0]}
                   </p>
                   <p className="text-xs text-slate-500 truncate">{email}</p>
                 </div>
