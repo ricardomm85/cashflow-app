@@ -73,11 +73,6 @@ export interface CashflowData {
   runway: CashflowRow;
 }
 
-export interface MetricsData {
-  b2bMetrics: Record<string, number>;
-  b2cMetrics: Record<string, number>;
-}
-
 export interface DashboardSummary {
   currentMonth: string; // YYYY-MM
   totalLiquidity: number;

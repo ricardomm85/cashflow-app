@@ -102,16 +102,4 @@ export async function initializeSpreadsheet(
     'transactions!A1',
     transactionsHeaders
   );
-
-  // Write metrics headers
-  const metricsHeaders = [
-    ['Metric', 'B2B', 'B2C'],
-  ];
-
-  await updateSheetData(
-    accessToken,
-    spreadsheetId,
-    'metrics!A1',
-    metricsHeaders
-  );
 }

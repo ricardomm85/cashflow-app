@@ -4,26 +4,15 @@ export const dynamic = 'force-dynamic';
 
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { calculateCashflow } from '@/lib/cashflow-engine';
 import { Transaction, BankBalance, Category } from '@/lib/types';
-
-interface MetricsInput {
-  [key: string]: number;
-}
 
 interface DashboardState {
   settings: any;
   transactions: Transaction[];
   categories: Category[];
   bankBalances: BankBalance[];
-  metrics: {
-    b2b: MetricsInput;
-    b2c: MetricsInput;
-  };
   isLoading: boolean;
   error: string | null;
 }
@@ -48,30 +37,8 @@ export default function DashboardPage() {
     transactions: [],
     categories: [],
     bankBalances: [],
-    metrics: {
-      b2b: {
-        trafico: 0,
-        contactos: 0,
-        reuniones: 0,
-        clientes: 0,
-        ticketMedio: 0,
-      },
-      b2c: {
-        visitas: 0,
-        conversiones: 0,
-        ticketMedio: 0,
-      },
-    },
     isLoading: true,
     error: null,
-  });
-
-  const [metricsInput, setMetricsInput] = useState<{
-    b2b: MetricsInput;
-    b2c: MetricsInput;
-  }>({
-    b2b: {},
-    b2c: {},
   });
 
   useEffect(() => {
@@ -149,48 +116,14 @@ export default function DashboardPage() {
           }
         }
 
-        // Fetch metrics
-        const metricsResponse = await fetch(
-          `/api/sheets/read?spreadsheetId=${spreadsheetId}&range=metrics!A:D`
-        );
-        const metricsData = await metricsResponse.json();
-        const metricsRows = (metricsData.data || []).slice(1);
-        const b2bMetrics: MetricsInput = {};
-        const b2cMetrics: MetricsInput = {};
-
-        metricsRows.forEach((row: any[]) => {
-          if (row[0]) {
-            const key = row[0].toLowerCase().replace(/\s+/g, '_');
-            const value = parseFloat(row[1]) || 0;
-
-            if (row[2] === 'B2B') {
-              b2bMetrics[key] = value;
-            } else if (row[2] === 'B2C') {
-              b2cMetrics[key] = value;
-            }
-          }
-        });
-
-        const finalMetricsB2B = b2bMetrics.trafico ? b2bMetrics : state.metrics.b2b;
-        const finalMetricsB2C = b2cMetrics.visitas ? b2cMetrics : state.metrics.b2c;
-
         setState((prev) => ({
           ...prev,
           settings,
           transactions,
           categories,
           bankBalances,
-          metrics: {
-            b2b: finalMetricsB2B,
-            b2c: finalMetricsB2C,
-          },
           isLoading: false,
         }));
-
-        setMetricsInput({
-          b2b: finalMetricsB2B,
-          b2c: finalMetricsB2C,
-        });
       } catch (error) {
         console.error('Error loading dashboard data:', error);
         setState((prev) => ({
@@ -378,150 +311,6 @@ export default function DashboardPage() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Metrics Section */}
-      <Tabs defaultValue="b2b" className="w-full">
-        <TabsList>
-          <TabsTrigger value="b2b">Métricas B2B</TabsTrigger>
-          <TabsTrigger value="b2c">Métricas B2C</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="b2b">
-          <Card>
-            <CardHeader className="border-b bg-slate-50">
-              <CardTitle>Métricas B2B</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div>
-                  <Label className="text-sm font-medium">Tráfico</Label>
-                  <Input
-                    type="number"
-                    value={metricsInput.b2b.trafico || 0}
-                    onChange={(e) =>
-                      setMetricsInput((prev) => ({
-                        ...prev,
-                        b2b: { ...prev.b2b, trafico: parseFloat(e.target.value) || 0 },
-                      }))
-                    }
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Contactos</Label>
-                  <Input
-                    type="number"
-                    value={metricsInput.b2b.contactos || 0}
-                    onChange={(e) =>
-                      setMetricsInput((prev) => ({
-                        ...prev,
-                        b2b: { ...prev.b2b, contactos: parseFloat(e.target.value) || 0 },
-                      }))
-                    }
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Reuniones</Label>
-                  <Input
-                    type="number"
-                    value={metricsInput.b2b.reuniones || 0}
-                    onChange={(e) =>
-                      setMetricsInput((prev) => ({
-                        ...prev,
-                        b2b: { ...prev.b2b, reuniones: parseFloat(e.target.value) || 0 },
-                      }))
-                    }
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Clientes</Label>
-                  <Input
-                    type="number"
-                    value={metricsInput.b2b.clientes || 0}
-                    onChange={(e) =>
-                      setMetricsInput((prev) => ({
-                        ...prev,
-                        b2b: { ...prev.b2b, clientes: parseFloat(e.target.value) || 0 },
-                      }))
-                    }
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Ticket Medio</Label>
-                  <Input
-                    type="number"
-                    value={metricsInput.b2b.ticketMedio || 0}
-                    onChange={(e) =>
-                      setMetricsInput((prev) => ({
-                        ...prev,
-                        b2b: { ...prev.b2b, ticketMedio: parseFloat(e.target.value) || 0 },
-                      }))
-                    }
-                    className="mt-1"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="b2c">
-          <Card>
-            <CardHeader className="border-b bg-slate-50">
-              <CardTitle>Métricas B2C</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div>
-                  <Label className="text-sm font-medium">Visitas</Label>
-                  <Input
-                    type="number"
-                    value={metricsInput.b2c.visitas || 0}
-                    onChange={(e) =>
-                      setMetricsInput((prev) => ({
-                        ...prev,
-                        b2c: { ...prev.b2c, visitas: parseFloat(e.target.value) || 0 },
-                      }))
-                    }
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Conversiones</Label>
-                  <Input
-                    type="number"
-                    value={metricsInput.b2c.conversiones || 0}
-                    onChange={(e) =>
-                      setMetricsInput((prev) => ({
-                        ...prev,
-                        b2c: { ...prev.b2c, conversiones: parseFloat(e.target.value) || 0 },
-                      }))
-                    }
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Ticket Medio</Label>
-                  <Input
-                    type="number"
-                    value={metricsInput.b2c.ticketMedio || 0}
-                    onChange={(e) =>
-                      setMetricsInput((prev) => ({
-                        ...prev,
-                        b2c: { ...prev.b2c, ticketMedio: parseFloat(e.target.value) || 0 },
-                      }))
-                    }
-                    className="mt-1"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
 
       {/* P&L Summary */}
       <Card>

@@ -33,7 +33,6 @@ export async function createSpreadsheet(
         { properties: { title: 'currencies' } },
         { properties: { title: 'bank_balances' } },
         { properties: { title: 'transactions' } },
-        { properties: { title: 'metrics' } },
       ],
     },
   });
