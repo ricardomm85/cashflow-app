@@ -10,7 +10,6 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
-import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -103,11 +102,13 @@ export default function AppLayout({
             {navItems.map((item) => {
               const Icon = item.icon;
               return (
-                <Link key={item.href} href={item.href}>
-                  <button className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
-                    <Icon className="w-5 h-5" />
-                    <span>{item.label}</span>
-                  </button>
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  <Icon className="w-5 h-5" />
+                  <span>{item.label}</span>
                 </Link>
               );
             })}
@@ -115,8 +116,7 @@ export default function AppLayout({
         </SidebarContent>
         <SidebarFooter className="border-t px-4 py-4">
           <DropdownMenu>
-            <DropdownMenuTrigger>
-              <button className="w-full flex items-center gap-3 p-2 hover:bg-slate-100 rounded-lg transition-colors">
+            <DropdownMenuTrigger className="w-full flex items-center gap-3 p-2 hover:bg-slate-100 rounded-lg transition-colors text-left">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-semibold">
                     {email.charAt(0).toUpperCase()}
@@ -128,7 +128,6 @@ export default function AppLayout({
                   </p>
                   <p className="text-xs text-slate-500 truncate">{email}</p>
                 </div>
-              </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={handleLogout} className="text-red-600">
