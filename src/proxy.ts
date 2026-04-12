@@ -1,10 +1,10 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { updateSession } from './lib/supabase/middleware';
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
-  // Skip middleware for auth callback (must process without auth check)
+  // Skip proxy for auth callback (must process without auth check)
   if (pathname.startsWith('/auth/callback')) {
     return NextResponse.next();
   }
