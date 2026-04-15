@@ -348,25 +348,46 @@ function asyncPage<T>(
 }
 
 function renderDashboardPage(state: AppState): HTMLElement {
+  const buildView = (transactions: TransactionRow[], banksData: BankBalancesData, currenciesData: CurrenciesData): HTMLElement => {
+    const months = banksData.months.length ? banksData.months : currenciesData.months;
+    return renderDashboard({
+      config: state.config,
+      spreadsheetId: state.spreadsheetId,
+      transactions,
+      banks: banksData.entities,
+      currencies: currenciesData.currencies,
+      months,
+    });
+  };
+
+  if (state.cache.transactions && state.cache.banks && state.cache.currencies) {
+    return buildView(state.cache.transactions, state.cache.banks, state.cache.currencies);
+  }
+
   return asyncPage(
     () => Promise.all([loadTransactions(state), loadBanks(state), loadCurrencies(state)]),
     'Calculando flujo de caja...',
-    ([transactions, banksData, currenciesData]) => {
-      const months = banksData.months.length ? banksData.months : currenciesData.months;
-      return renderDashboard({
-        config: state.config,
-        spreadsheetId: state.spreadsheetId,
-        transactions,
-        banks: banksData.entities,
-        currencies: currenciesData.currencies,
-        months,
-      });
-    },
+    ([t, b, c]) => buildView(t, b, c),
   );
 }
 
 function renderCurrenciesPage(state: AppState): HTMLElement {
   const pageWrap = el('div');
+
+  const buildView = (data: CurrenciesData): HTMLElement => renderCurrencies({
+    data,
+    onAdd: async (code: string, rate: number) => {
+      const t = await getGoogleAccessToken();
+      await addCurrency(t, state.spreadsheetId, data.months, code, rate);
+      invalidate(state, 'currencies');
+      await run(true);
+    },
+    onUpdateRate: async (rowIndex: number, monthKey: string, value: number) => {
+      const t = await getGoogleAccessToken();
+      await updateRate(t, state.spreadsheetId, rowIndex, data.months, monthKey, value);
+      invalidate(state, 'currencies');
+    },
+  });
 
   const run = async (force = false): Promise<void> => {
     if (!state.cache.currencies || force) {
@@ -379,21 +400,7 @@ function renderCurrenciesPage(state: AppState): HTMLElement {
     }
     try {
       const data = await loadCurrencies(state, force);
-      const view = renderCurrencies({
-        data,
-        onAdd: async (code: string, rate: number) => {
-          const t = await getGoogleAccessToken();
-          await addCurrency(t, state.spreadsheetId, data.months, code, rate);
-          invalidate(state, 'currencies');
-          await run();
-        },
-        onUpdateRate: async (rowIndex: number, monthKey: string, value: number) => {
-          const t = await getGoogleAccessToken();
-          await updateRate(t, state.spreadsheetId, rowIndex, data.months, monthKey, value);
-          invalidate(state, 'currencies');
-        },
-      });
-      pageWrap.replaceChildren(view);
+      pageWrap.replaceChildren(buildView(data));
     } catch (e) {
       pageWrap.replaceChildren(
         el('div', { className: 'state state--error', textContent: e instanceof Error ? e.message : String(e) }),
@@ -401,12 +408,32 @@ function renderCurrenciesPage(state: AppState): HTMLElement {
     }
   };
 
-  void run();
+  if (state.cache.currencies) {
+    pageWrap.append(buildView(state.cache.currencies));
+  } else {
+    void run();
+  }
   return pageWrap;
 }
 
 function renderBankBalancesPage(state: AppState): HTMLElement {
   const pageWrap = el('div');
+
+  const buildView = (data: BankBalancesData): HTMLElement => renderBankBalances({
+    data,
+    onAdd: async (entity: BankBalance) => {
+      const t = await getGoogleAccessToken();
+      await addEntity(t, state.spreadsheetId, data.months, entity);
+      invalidate(state, 'banks');
+      await run(true);
+    },
+    onUpdateEntity: async () => {},
+    onUpdateBalance: async (rowIndex: number, monthKey: string, value: number) => {
+      const t = await getGoogleAccessToken();
+      await updateBalance(t, state.spreadsheetId, rowIndex, data.months, monthKey, value);
+      invalidate(state, 'banks');
+    },
+  });
 
   const run = async (force = false): Promise<void> => {
     if (!state.cache.banks || force) {
@@ -419,22 +446,7 @@ function renderBankBalancesPage(state: AppState): HTMLElement {
     }
     try {
       const data = await loadBanks(state, force);
-      const view = renderBankBalances({
-        data,
-        onAdd: async (entity: BankBalance) => {
-          const t = await getGoogleAccessToken();
-          await addEntity(t, state.spreadsheetId, data.months, entity);
-          invalidate(state, 'banks');
-          await run();
-        },
-        onUpdateEntity: async () => {},
-        onUpdateBalance: async (rowIndex: number, monthKey: string, value: number) => {
-          const t = await getGoogleAccessToken();
-          await updateBalance(t, state.spreadsheetId, rowIndex, data.months, monthKey, value);
-          invalidate(state, 'banks');
-        },
-      });
-      pageWrap.replaceChildren(view);
+      pageWrap.replaceChildren(buildView(data));
     } catch (e) {
       pageWrap.replaceChildren(
         el('div', { className: 'state state--error', textContent: e instanceof Error ? e.message : String(e) }),
@@ -442,12 +454,37 @@ function renderBankBalancesPage(state: AppState): HTMLElement {
     }
   };
 
-  void run();
+  if (state.cache.banks) {
+    pageWrap.append(buildView(state.cache.banks));
+  } else {
+    void run();
+  }
   return pageWrap;
 }
 
 function renderCategoriesPage(state: AppState): HTMLElement {
   const pageWrap = el('div');
+
+  const buildView = (categories: CategoryRow[]): HTMLElement => renderCategories({
+    categories,
+    onAdd: async (cat: Category) => {
+      const t = await getGoogleAccessToken();
+      await addCategory(t, state.spreadsheetId, cat);
+      invalidate(state, 'categories');
+      await run(true);
+    },
+    onToggle: async (rowIndex: number, active: boolean) => {
+      const t = await getGoogleAccessToken();
+      await setCategoryActive(t, state.spreadsheetId, rowIndex, active);
+      invalidate(state, 'categories');
+    },
+    onUpdate: async (rowIndex: number, cat: Category) => {
+      const t = await getGoogleAccessToken();
+      await updateCategory(t, state.spreadsheetId, rowIndex, cat);
+      invalidate(state, 'categories');
+      await run(true);
+    },
+  });
 
   const run = async (force = false): Promise<void> => {
     if (!state.cache.categories || force) {
@@ -460,27 +497,7 @@ function renderCategoriesPage(state: AppState): HTMLElement {
     }
     try {
       const categories = await loadCategories(state, force);
-      const view = renderCategories({
-        categories,
-        onAdd: async (cat: Category) => {
-          const t = await getGoogleAccessToken();
-          await addCategory(t, state.spreadsheetId, cat);
-          invalidate(state, 'categories');
-          await run();
-        },
-        onToggle: async (rowIndex: number, active: boolean) => {
-          const t = await getGoogleAccessToken();
-          await setCategoryActive(t, state.spreadsheetId, rowIndex, active);
-          invalidate(state, 'categories');
-        },
-        onUpdate: async (rowIndex: number, cat: Category) => {
-          const t = await getGoogleAccessToken();
-          await updateCategory(t, state.spreadsheetId, rowIndex, cat);
-          invalidate(state, 'categories');
-          await run();
-        },
-      });
-      pageWrap.replaceChildren(view);
+      pageWrap.replaceChildren(buildView(categories));
     } catch (e) {
       pageWrap.replaceChildren(
         el('div', { className: 'state state--error', textContent: e instanceof Error ? e.message : String(e) }),
@@ -488,16 +505,55 @@ function renderCategoriesPage(state: AppState): HTMLElement {
     }
   };
 
-  void run();
+  if (state.cache.categories) {
+    pageWrap.append(buildView(state.cache.categories));
+  } else {
+    void run();
+  }
   return pageWrap;
 }
 
 function renderTransactionsPage(state: AppState): HTMLElement {
   const pageWrap = el('div');
 
+  const buildView = (
+    transactions: TransactionRow[],
+    categories: CategoryRow[],
+    banksData: BankBalancesData,
+    currenciesData: CurrenciesData,
+  ): HTMLElement => {
+    const banks = banksData.entities.map(e => e.entity).filter(Boolean);
+    return renderTransactions({
+      transactions,
+      categories,
+      banks,
+      currencies: currenciesData.currencies,
+      onAdd: async (tx: Transaction) => {
+        const t = await getGoogleAccessToken();
+        await addTransaction(t, state.spreadsheetId, tx);
+        invalidate(state, 'transactions');
+        await run(true);
+      },
+      onUpdate: async (rowIndex: number, tx: Transaction) => {
+        const t = await getGoogleAccessToken();
+        await updateTransaction(t, state.spreadsheetId, rowIndex, tx);
+        invalidate(state, 'transactions');
+        await run(true);
+      },
+      onDelete: async (rowIndex: number) => {
+        const t = await getGoogleAccessToken();
+        await deleteTransaction(t, state.spreadsheetId, rowIndex);
+        invalidate(state, 'transactions');
+        await run(true);
+      },
+    });
+  };
+
+  const hasAll = (): boolean =>
+    !!(state.cache.transactions && state.cache.categories && state.cache.banks && state.cache.currencies);
+
   const run = async (force = false): Promise<void> => {
-    const noCache = !state.cache.transactions || !state.cache.categories || !state.cache.banks || !state.cache.currencies;
-    if (noCache || force) {
+    if (!hasAll() || force) {
       pageWrap.replaceChildren(
         el('div', { className: 'loading' }, [
           el('span', { className: 'spinner' }),
@@ -512,34 +568,7 @@ function renderTransactionsPage(state: AppState): HTMLElement {
         loadBanks(state, force),
         loadCurrencies(state, force),
       ]);
-      const banks = banksData.entities.map(e => e.entity).filter(Boolean);
-
-      const view = renderTransactions({
-        transactions,
-        categories,
-        banks,
-        currencies: currenciesData.currencies,
-        onAdd: async (tx: Transaction) => {
-          const t = await getGoogleAccessToken();
-          await addTransaction(t, state.spreadsheetId, tx);
-          invalidate(state, 'transactions');
-          await run();
-        },
-        onUpdate: async (rowIndex: number, tx: Transaction) => {
-          const t = await getGoogleAccessToken();
-          await updateTransaction(t, state.spreadsheetId, rowIndex, tx);
-          invalidate(state, 'transactions');
-          await run();
-        },
-        onDelete: async (rowIndex: number) => {
-          const t = await getGoogleAccessToken();
-          await deleteTransaction(t, state.spreadsheetId, rowIndex);
-          invalidate(state, 'transactions');
-          await run();
-        },
-      });
-
-      pageWrap.replaceChildren(view);
+      pageWrap.replaceChildren(buildView(transactions, categories, banksData, currenciesData));
     } catch (e) {
       pageWrap.replaceChildren(
         el('div', { className: 'state state--error', textContent: e instanceof Error ? e.message : String(e) }),
@@ -547,7 +576,16 @@ function renderTransactionsPage(state: AppState): HTMLElement {
     }
   };
 
-  void run();
+  if (hasAll()) {
+    pageWrap.append(buildView(
+      state.cache.transactions!,
+      state.cache.categories!,
+      state.cache.banks!,
+      state.cache.currencies!,
+    ));
+  } else {
+    void run();
+  }
   return pageWrap;
 }
 
@@ -560,9 +598,17 @@ function makeSaveConfig(state: AppState): (c: Config) => Promise<void> {
   };
 }
 
+let currentUserId: string | null = null;
+
 async function init(): Promise<void> {
-  onAuthChange(session => void handleSession(session));
+  onAuthChange(session => {
+    const nextId = session?.user.id ?? null;
+    if (nextId === currentUserId) return;
+    currentUserId = nextId;
+    void handleSession(session);
+  });
   const session = await getSession();
+  currentUserId = session?.user.id ?? null;
   await handleSession(session);
 }
 
