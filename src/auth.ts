@@ -83,7 +83,7 @@ export async function getGoogleAccessToken(): Promise<string> {
       grant_type: 'refresh_token',
     }),
   });
-  if (!res.ok) { console.error('Token refresh failed:', res.status, await res.text()); throw new Error('Error al renovar sesión. Vuelve a iniciar sesión.'); }
+  if (!res.ok) { console.error('Token refresh failed:', res.status); throw new Error('Error al renovar sesión. Vuelve a iniciar sesión.'); }
   const data = (await res.json()) as { access_token: string; expires_in: number };
   const refreshed: StoredToken = {
     accessToken: data.access_token,

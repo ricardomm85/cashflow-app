@@ -1,4 +1,4 @@
-import { appendRows, readRange, writeRange } from './sheets.ts';
+import { appendRows, fetchWithRetry, readRange, writeRange } from './sheets.ts';
 import type { Transaction } from './types.ts';
 
 export interface TransactionRow extends Transaction {
@@ -49,12 +49,17 @@ export async function addTransaction(token: string, spreadsheetId: string, tx: T
   await appendRows({ token, spreadsheetId, range: 'transactions!A1', values: [toRow(tx)] });
 }
 
+function validateRowIndex(rowIndex: number): void {
+  if (rowIndex < 2) throw new Error('Índice de fila inválido.');
+}
+
 export async function updateTransaction(
   token: string,
   spreadsheetId: string,
   rowIndex: number,
   tx: Transaction,
 ): Promise<void> {
+  validateRowIndex(rowIndex);
   await writeRange({
     token,
     spreadsheetId,
@@ -68,8 +73,9 @@ export async function deleteTransaction(
   spreadsheetId: string,
   rowIndex: number,
 ): Promise<void> {
+  validateRowIndex(rowIndex);
   const sheetId = await getSheetIdByTitle(token, spreadsheetId, 'transactions');
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`,
     {
       method: 'POST',
@@ -87,19 +93,21 @@ export async function deleteTransaction(
         }],
       }),
     },
+    'Delete row',
   );
-  if (!res.ok) throw new Error(`Delete failed: ${res.status} ${await res.text()}`);
+  if (!res.ok) { console.error('Delete failed:', res.status); throw new Error(`Error al eliminar fila (${res.status}).`); }
 }
 
 async function getSheetIdByTitle(token: string, spreadsheetId: string, title: string): Promise<number> {
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties`,
     { headers: { Authorization: `Bearer ${token}` } },
+    'Sheet metadata',
   );
-  if (!res.ok) throw new Error(`Meta failed: ${res.status}`);
+  if (!res.ok) { console.error('Sheet metadata failed:', res.status); throw new Error(`Error al obtener metadatos (${res.status}).`); }
   const data = await res.json();
   const sheet = data.sheets?.find((s: { properties: { title: string; sheetId: number } }) =>
     s.properties.title === title);
-  if (!sheet) throw new Error(`Sheet "${title}" no encontrada`);
+  if (!sheet) throw new Error(`Hoja "${title}" no encontrada`);
   return sheet.properties.sheetId;
 }
