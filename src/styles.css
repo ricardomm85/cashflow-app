@@ -279,6 +279,10 @@ html, body {
   color: var(--accent);
   flex-shrink: 0;
 }
+.sidebar__avatar--img {
+  object-fit: cover;
+  background: none;
+}
 
 .sidebar__email {
   font-size: 0.78rem;
