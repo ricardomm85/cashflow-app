@@ -27,6 +27,10 @@ import { addCurrency, readCurrencies, updateRate, type CurrenciesData } from './
 import { renderCurrencies } from './views/currencies.ts';
 import type { BankBalance, Category, Transaction } from './types.ts';
 
+import { initTheme } from './theme.ts';
+
+initTheme();
+
 const SHEET_TITLE = 'Cashflow';
 const app = document.getElementById('app')!;
 

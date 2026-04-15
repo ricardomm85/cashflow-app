@@ -2,6 +2,7 @@ import { el } from './dom.ts';
 import { currentRoute, navigate, type Route } from './router.ts';
 import { signOut } from './auth.ts';
 import { icons } from './icons.ts';
+import { getEffectiveTheme, toggleTheme } from './theme.ts';
 
 interface NavLink {
   route: Route;
@@ -35,6 +36,28 @@ function userInitial(email: string): string {
   return (email[0] ?? 'U').toUpperCase();
 }
 
+function renderThemeToggle(): HTMLButtonElement {
+  const current = getEffectiveTheme();
+  const btn = el('button', {
+    className: 'btn btn--ghost',
+    title: current === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro',
+    onclick: () => {
+      toggleTheme();
+      // Repaint label/icon on next render — rebuild button content in place.
+      const next = getEffectiveTheme();
+      btn.replaceChildren(
+        next === 'dark' ? icons.sun() : icons.moon(),
+        el('span', { textContent: next === 'dark' ? 'Tema claro' : 'Tema oscuro' }),
+      );
+      btn.title = next === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro';
+    },
+  }, [
+    current === 'dark' ? icons.sun() : icons.moon(),
+    el('span', { textContent: current === 'dark' ? 'Tema claro' : 'Tema oscuro' }),
+  ]);
+  return btn;
+}
+
 export function renderShell(opts: {
   userEmail: string;
   companyName?: string;
@@ -62,6 +85,7 @@ export function renderShell(opts: {
       ...SECONDARY.map(l => navItem(l, l.route === active)),
     ]),
     el('div', { className: 'sidebar__footer' }, [
+      renderThemeToggle(),
       el('div', { className: 'sidebar__user' }, [
         el('div', { className: 'sidebar__avatar', textContent: userInitial(opts.userEmail) }),
         el('div', { className: 'sidebar__email', title: opts.userEmail, textContent: opts.userEmail }),

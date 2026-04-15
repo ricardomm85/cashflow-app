@@ -127,11 +127,11 @@ function renderTable(deps: CurrenciesViewDeps): HTMLElement {
 
   const header = el('tr', {}, [
     el('th', {
-      style: 'position:sticky;left:0;background:#d9d6cd;z-index:2;min-width:120px;',
+      style: 'position:sticky;left:0;background:var(--table-sticky-bg);z-index:2;min-width:120px;',
       textContent: 'Divisa',
     }),
     ...months.map(m => el('th', {
-      style: `min-width:100px;text-align:right;${m === currentKey ? 'background:#cfccc1;color:var(--accent);' : ''}`,
+      style: `min-width:100px;text-align:right;${m === currentKey ? 'background:var(--table-header-hover);color:var(--accent);' : ''}`,
       textContent: formatMonth(m),
     })),
   ]);
@@ -188,7 +188,7 @@ function renderRow(
       font-variant-numeric:tabular-nums;text-align:right;background:transparent;color:var(--fg);
       ${isCurrent ? 'font-weight:600;' : ''}
     `;
-    input.onfocus = () => { input.style.borderColor = 'var(--border-strong)'; input.style.background = 'white'; };
+    input.onfocus = () => { input.style.borderColor = 'var(--border-strong)'; input.style.background = 'var(--surface)'; };
     input.onblur = async () => {
       input.style.borderColor = 'transparent';
       input.style.background = 'transparent';
