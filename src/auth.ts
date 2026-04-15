@@ -32,6 +32,7 @@ export async function signInWithGoogle(): Promise<void> {
 }
 
 export async function signOut(): Promise<void> {
+  sessionStorage.removeItem(TOKEN_KEY);
   for (let i = localStorage.length - 1; i >= 0; i--) {
     const key = localStorage.key(i);
     if (key?.startsWith('cashflow.')) localStorage.removeItem(key);
@@ -60,11 +61,13 @@ export function onAuthChange(cb: (session: Session | null) => void): () => void 
 }
 
 function storeToken(t: StoredToken): void {
-  localStorage.setItem(TOKEN_KEY, JSON.stringify(t));
+  sessionStorage.setItem(TOKEN_KEY, JSON.stringify(t));
+  // Evict stale localStorage copy from older versions.
+  localStorage.removeItem(TOKEN_KEY);
 }
 
 function readToken(): StoredToken | null {
-  const raw = localStorage.getItem(TOKEN_KEY);
+  const raw = sessionStorage.getItem(TOKEN_KEY) ?? localStorage.getItem(TOKEN_KEY);
   return raw ? (JSON.parse(raw) as StoredToken) : null;
 }
 
