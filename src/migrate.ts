@@ -84,6 +84,9 @@ async function acquireLock(
 
   if (existing && (Date.now() - existing.ts) < LOCK_STALE_MS) return false;
 
+  // Small random delay to desynchronize concurrent tabs (advisory lock has TOCTOU window)
+  await new Promise(r => setTimeout(r, Math.random() * 500));
+
   const nonce = crypto.randomUUID();
   const lockVal = `${nonce}|${Date.now()}`;
   await setConfigKey(token, spreadsheetId, config, LOCK_KEY, lockVal);
@@ -109,7 +112,7 @@ async function getSheetMeta(token: string, spreadsheetId: string): Promise<Sheet
     `${SHEETS_API}/${spreadsheetId}?fields=sheets.properties`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
-  if (!res.ok) throw new Error(`Meta failed: ${res.status}`);
+  if (!res.ok) { console.error('Sheet metadata failed:', res.status); throw new Error(`Error al obtener metadatos (${res.status}).`); }
   const data = await res.json();
   if (!Array.isArray(data.sheets)) {
     throw new Error('Unexpected sheet metadata response');
@@ -177,7 +180,7 @@ async function deleteSheetIfExists(
       requests: [{ deleteSheet: { sheetId: sheet.sheetId } }],
     }),
   });
-  if (!res.ok) throw new Error(`Delete sheet "${title}" failed: ${res.status} ${await res.text()}`);
+  if (!res.ok) { console.error('Delete sheet failed:', res.status); throw new Error(`Error al eliminar hoja "${title}" (${res.status}).`); }
 }
 
 async function migrateTxColumns(
@@ -238,5 +241,5 @@ async function migrateTxColumns(
       ],
     }),
   });
-  if (!res.ok) throw new Error(`Migrate tx columns failed: ${res.status} ${await res.text()}`);
+  if (!res.ok) { console.error('Migrate tx columns failed:', res.status); throw new Error(`Error al migrar columnas (${res.status}).`); }
 }

@@ -68,7 +68,24 @@ function storeToken(t: StoredToken): void {
 
 function readToken(): StoredToken | null {
   const raw = sessionStorage.getItem(TOKEN_KEY) ?? localStorage.getItem(TOKEN_KEY);
-  return raw ? (JSON.parse(raw) as StoredToken) : null;
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (
+      typeof parsed?.accessToken !== 'string' ||
+      typeof parsed?.expiresAt !== 'number' ||
+      !Number.isFinite(parsed.expiresAt)
+    ) {
+      sessionStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(TOKEN_KEY);
+      return null;
+    }
+    return parsed as StoredToken;
+  } catch {
+    sessionStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+    return null;
+  }
 }
 
 export async function getGoogleAccessToken(): Promise<string> {

@@ -49,6 +49,17 @@ function validateRowIndex(rowIndex: number): void {
   if (rowIndex < 2) throw new Error('Índice de fila inválido.');
 }
 
+async function verifyRow(token: string, spreadsheetId: string, rowIndex: number, expected: Transaction): Promise<void> {
+  const rows = await readRange({ token, spreadsheetId, range: `transactions!A${rowIndex}:D${rowIndex}` });
+  const row = rows[0];
+  if (!row || !row[0]) {
+    throw new Error('La fila ya no existe. Recarga los datos.');
+  }
+  if (row[0] !== expected.date || row[2] !== expected.description || Number(row[3]) !== expected.amount) {
+    throw new Error('La fila ha cambiado. Recarga los datos e intenta de nuevo.');
+  }
+}
+
 export async function updateTransaction(
   token: string,
   spreadsheetId: string,
@@ -68,8 +79,10 @@ export async function deleteTransaction(
   token: string,
   spreadsheetId: string,
   rowIndex: number,
+  expected: Transaction,
 ): Promise<void> {
   validateRowIndex(rowIndex);
+  await verifyRow(token, spreadsheetId, rowIndex, expected);
   const sheetId = await getSheetIdByTitle(token, spreadsheetId, 'transactions');
   const res = await fetchWithRetry(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`,

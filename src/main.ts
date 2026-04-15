@@ -183,7 +183,13 @@ function renderView(state: AppState, saveConfig: (c: Config) => Promise<void>): 
   }
 
   app.replaceChildren(
-    renderShell({ userEmail: email, companyName: state.config.companyName, content }),
+    renderShell({
+      userEmail: email,
+      userName: state.session.user.user_metadata?.full_name as string | undefined,
+      userPhoto: state.session.user.user_metadata?.avatar_url as string | undefined,
+      companyName: state.config.companyName,
+      content,
+    }),
   );
 }
 
@@ -234,6 +240,8 @@ async function handleSession(session: Session | null): Promise<void> {
       app.replaceChildren(
         renderShell({
           userEmail: session.user.email ?? '',
+          userName: session.user.user_metadata?.full_name as string | undefined,
+          userPhoto: session.user.user_metadata?.avatar_url as string | undefined,
           content: renderConfigView(partial, onboard, { firstTime: true }),
         }),
       );
@@ -471,9 +479,9 @@ function renderTransactionsPage(state: AppState): HTMLElement {
         invalidate(state, 'transactions');
         await run(true);
       },
-      onDelete: async (rowIndex: number) => {
+      onDelete: async (rowIndex: number, tx: Transaction) => {
         const t = await getGoogleAccessToken();
-        await deleteTransaction(t, state.spreadsheetId, rowIndex);
+        await deleteTransaction(t, state.spreadsheetId, rowIndex, tx);
         invalidate(state, 'transactions');
         await run(true);
       },

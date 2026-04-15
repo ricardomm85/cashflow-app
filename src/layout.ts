@@ -59,6 +59,8 @@ function renderThemeToggle(): HTMLButtonElement {
 
 export function renderShell(opts: {
   userEmail: string;
+  userName?: string;
+  userPhoto?: string;
   companyName?: string;
   content: HTMLElement;
 }): HTMLElement {
@@ -86,8 +88,10 @@ export function renderShell(opts: {
     el('div', { className: 'sidebar__footer' }, [
       renderThemeToggle(),
       el('div', { className: 'sidebar__user' }, [
-        el('div', { className: 'sidebar__avatar', textContent: userInitial(opts.userEmail) }),
-        el('div', { className: 'sidebar__email', title: opts.userEmail, textContent: opts.userEmail }),
+        opts.userPhoto
+          ? el('img', { className: 'sidebar__avatar sidebar__avatar--img', src: opts.userPhoto, alt: '', referrerPolicy: 'no-referrer' })
+          : el('div', { className: 'sidebar__avatar', textContent: userInitial(opts.userName ?? opts.userEmail) }),
+        el('div', { className: 'sidebar__email', title: opts.userEmail, textContent: opts.userName ?? opts.userEmail }),
       ]),
       el('button', {
         className: 'btn btn--ghost',

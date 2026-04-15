@@ -33,7 +33,12 @@ export async function fetchWithRetry(
   throw new Error(`${label} failed: exhausted retries`);
 }
 
+function validateSpreadsheetId(id: string): void {
+  if (!/^[a-zA-Z0-9_-]{20,60}$/.test(id)) throw new Error('ID de hoja inválido.');
+}
+
 export async function readRange({ token, spreadsheetId, range }: SheetsRequest): Promise<string[][]> {
+  validateSpreadsheetId(spreadsheetId);
   const url = `${SHEETS_API}/${spreadsheetId}/values/${encodeURIComponent(range)}`;
   const res = await fetchWithRetry(url, { headers: { Authorization: `Bearer ${token}` } }, 'Sheets read');
   if (!res.ok) { console.error('Sheets read failed:', res.status); throw new Error(`Error al leer datos (${res.status}).`); }
@@ -117,7 +122,8 @@ export async function createSpreadsheet(token: string, title: string): Promise<s
 }
 
 export async function findSpreadsheet(token: string, title: string): Promise<string | null> {
-  const q = encodeURIComponent(`name='${title}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`);
+  const safeTitle = title.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const q = encodeURIComponent(`name='${safeTitle}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`);
   const res = await fetchWithRetry(`${DRIVE_API}?q=${q}&fields=files(id,name)`, {
     headers: { Authorization: `Bearer ${token}` },
   }, 'Drive search');

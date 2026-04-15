@@ -12,7 +12,7 @@ export interface TransactionsViewDeps {
   banks: string[];
   onAdd: (tx: Transaction) => Promise<void>;
   onUpdate: (rowIndex: number, tx: Transaction) => Promise<void>;
-  onDelete: (rowIndex: number) => Promise<void>;
+  onDelete: (rowIndex: number, tx: Transaction) => Promise<void>;
 }
 
 type AmountOp = 'any' | 'eq' | 'gt' | 'lt';
@@ -601,7 +601,7 @@ function renderTable(
               danger: true,
             });
             if (!ok) return;
-            await deps.onDelete(tx.rowIndex);
+            await deps.onDelete(tx.rowIndex, tx);
           },
         }, [icons.trash()]),
       ]),
