@@ -10,6 +10,7 @@ import {
 } from './auth.ts';
 import { batchRead, createSpreadsheet, findSpreadsheet } from './sheets.ts';
 import { seedSpreadsheet } from './seed.ts';
+import { runMigrations } from './migrate.ts';
 import { isConfigComplete, readConfig, writeConfig } from './config.ts';
 import type { Config } from './types.ts';
 import { currentRoute, navigate, onRouteChange } from './router.ts';
@@ -46,15 +47,6 @@ import {
   type BankBalancesData,
 } from './bank-balances.ts';
 import { renderBankBalances } from './views/bank-balances.ts';
-import {
-  addCurrency,
-  CURRENCIES_RANGE,
-  parseCurrencies,
-  readCurrencies,
-  updateRate,
-  type CurrenciesData,
-} from './currencies.ts';
-import { renderCurrencies } from './views/currencies.ts';
 import { invalidateCache, readCache, writeCache } from './cache.ts';
 import type { BankBalance, Category, Transaction } from './types.ts';
 
@@ -69,7 +61,6 @@ interface Cache {
   transactions: TransactionRow[] | null;
   categories: CategoryRow[] | null;
   banks: BankBalancesData | null;
-  currencies: CurrenciesData | null;
 }
 
 interface AppState {
@@ -80,7 +71,7 @@ interface AppState {
 }
 
 function emptyCache(): Cache {
-  return { transactions: null, categories: null, banks: null, currencies: null };
+  return { transactions: null, categories: null, banks: null };
 }
 
 async function loadTransactions(state: AppState, force = false): Promise<TransactionRow[]> {
@@ -122,19 +113,6 @@ async function loadBanks(state: AppState, force = false): Promise<BankBalancesDa
   return data;
 }
 
-async function loadCurrencies(state: AppState, force = false): Promise<CurrenciesData> {
-  if (!force && state.cache.currencies) return state.cache.currencies;
-  if (!force) {
-    const cached = readCache<CurrenciesData>(state.spreadsheetId, 'currencies');
-    if (cached) { state.cache.currencies = cached; return cached; }
-  }
-  const token = await getGoogleAccessToken();
-  const data = await readCurrencies(token, state.spreadsheetId);
-  state.cache.currencies = data;
-  writeCache(state.spreadsheetId, 'currencies', data);
-  return data;
-}
-
 function invalidate(state: AppState, ...keys: (keyof Cache)[]): void {
   for (const k of keys) state.cache[k] = null as never;
   invalidateCache(state.spreadsheetId, ...keys);
@@ -157,23 +135,25 @@ function renderAuth(): void {
   );
 }
 
-function renderFullScreenState(msg: string, isError = false): void {
-  if (isError) {
-    app.replaceChildren(
-      el('div', { className: 'auth' }, [
-        el('div', { className: 'auth__card' }, [
-          el('p', { className: 'state state--error', textContent: msg }),
-          el('button', { className: 'btn', textContent: 'Cerrar sesion', onclick: () => signOut() }),
-        ]),
-      ]),
-    );
-    return;
+function renderFullScreenState(msg: string, opts?: { isError?: boolean; onRetry?: () => void }): void {
+  const isError = opts?.isError ?? false;
+  const errorChildren: (HTMLElement | string)[] = [
+    el('p', { className: 'state state--error', textContent: msg }),
+  ];
+  if (opts?.onRetry) {
+    errorChildren.push(el('button', { className: 'btn btn--primary', textContent: 'Reintentar', onclick: opts.onRetry }));
   }
+  errorChildren.push(el('button', { className: 'btn', textContent: 'Cerrar sesion', onclick: () => signOut() }));
+
   app.replaceChildren(
-    el('div', { className: 'fullscreen-loading' }, [
-      el('div', { className: 'loading' }, [
-        el('span', { className: 'spinner' }),
-        el('span', { textContent: msg }),
+    el('div', { className: 'auth' }, [
+      el('div', { className: 'auth__card' }, [
+        ...(isError
+          ? errorChildren
+          : [el('div', { className: 'loading' }, [
+              el('span', { className: 'spinner' }),
+              el('span', { textContent: msg }),
+            ])]),
       ]),
     ]),
   );
@@ -200,9 +180,6 @@ function renderView(state: AppState, saveConfig: (c: Config) => Promise<void>): 
     case 'bank-balances':
       content = renderBankBalancesPage(state);
       break;
-    case 'currencies':
-      content = renderCurrenciesPage(state);
-      break;
   }
 
   app.replaceChildren(
@@ -227,15 +204,22 @@ async function ensureSpreadsheet(token: string): Promise<string> {
   return created;
 }
 
+let activeSessionId: string | null = null;
+
 async function handleSession(session: Session | null): Promise<void> {
   if (!session) {
+    activeSessionId = null;
     renderAuth();
     return;
   }
+  const sid = session.user.id;
+  if (activeSessionId === sid) return;
+  activeSessionId = sid;
   try {
     renderFullScreenState('Cargando...');
     const token = await getGoogleAccessToken();
     const spreadsheetId = await ensureSpreadsheet(token);
+    await runMigrations(token, spreadsheetId);
     const partial = await readConfig(token, spreadsheetId);
 
     if (!isConfigComplete(partial)) {
@@ -263,7 +247,11 @@ async function handleSession(session: Session | null): Promise<void> {
     renderView(state, saveConfig);
     void prefetch(state);
   } catch (e) {
-    renderFullScreenState(e instanceof Error ? e.message : String(e), true);
+    activeSessionId = null;
+    renderFullScreenState(e instanceof Error ? e.message : String(e), {
+      isError: true,
+      onRetry: () => void handleSession(session),
+    });
   }
 }
 
@@ -272,13 +260,10 @@ async function prefetch(state: AppState): Promise<void> {
   if (!readCache<TransactionRow[]>(state.spreadsheetId, 'transactions')) needsFetch.push('transactions');
   if (!readCache<CategoryRow[]>(state.spreadsheetId, 'categories')) needsFetch.push('categories');
   if (!readCache<BankBalancesData>(state.spreadsheetId, 'banks')) needsFetch.push('banks');
-  if (!readCache<CurrenciesData>(state.spreadsheetId, 'currencies')) needsFetch.push('currencies');
 
-  // Hydrate memory cache from any fresh localStorage entries
   state.cache.transactions ??= readCache<TransactionRow[]>(state.spreadsheetId, 'transactions');
   state.cache.categories ??= readCache<CategoryRow[]>(state.spreadsheetId, 'categories');
   state.cache.banks ??= readCache<BankBalancesData>(state.spreadsheetId, 'banks');
-  state.cache.currencies ??= readCache<CurrenciesData>(state.spreadsheetId, 'currencies');
 
   if (!needsFetch.length) return;
 
@@ -287,7 +272,6 @@ async function prefetch(state: AppState): Promise<void> {
       transactions: TRANSACTIONS_RANGE,
       categories: CATEGORIES_RANGE,
       banks: BANK_BALANCES_RANGE,
-      currencies: CURRENCIES_RANGE,
     };
     const ranges = needsFetch.map(k => rangeMap[k]);
     const token = await getGoogleAccessToken();
@@ -302,14 +286,10 @@ async function prefetch(state: AppState): Promise<void> {
         const data = parseCategories(rows);
         state.cache.categories = data;
         writeCache(state.spreadsheetId, 'categories', data);
-      } else if (key === 'banks') {
+      } else {
         const data = parseBankBalances(rows);
         state.cache.banks = data;
         writeCache(state.spreadsheetId, 'banks', data);
-      } else {
-        const data = parseCurrencies(rows);
-        state.cache.currencies = data;
-        writeCache(state.spreadsheetId, 'currencies', data);
       }
     });
   } catch {
@@ -354,72 +334,19 @@ function asyncPage<T>(
 }
 
 function renderDashboardPage(state: AppState): HTMLElement {
-  const buildView = (transactions: TransactionRow[], banksData: BankBalancesData, currenciesData: CurrenciesData): HTMLElement => {
-    const months = banksData.months.length ? banksData.months : currenciesData.months;
-    return renderDashboard({
-      config: state.config,
-      spreadsheetId: state.spreadsheetId,
-      transactions,
-      banks: banksData.entities,
-      currencies: currenciesData.currencies,
-      months,
-    });
-  };
-
-  if (state.cache.transactions && state.cache.banks && state.cache.currencies) {
-    return buildView(state.cache.transactions, state.cache.banks, state.cache.currencies);
-  }
-
   return asyncPage(
-    () => Promise.all([loadTransactions(state), loadBanks(state), loadCurrencies(state)]),
+    () => Promise.all([loadTransactions(state), loadBanks(state)]),
     'Calculando flujo de caja...',
-    ([t, b, c]) => buildView(t, b, c),
+    ([transactions, banksData]) => {
+      return renderDashboard({
+        config: state.config,
+        spreadsheetId: state.spreadsheetId,
+        transactions,
+        banks: banksData.entities,
+        months: banksData.months,
+      });
+    },
   );
-}
-
-function renderCurrenciesPage(state: AppState): HTMLElement {
-  const pageWrap = el('div');
-
-  const buildView = (data: CurrenciesData): HTMLElement => renderCurrencies({
-    data,
-    onAdd: async (code: string, rate: number) => {
-      const t = await getGoogleAccessToken();
-      await addCurrency(t, state.spreadsheetId, data.months, code, rate);
-      invalidate(state, 'currencies');
-      await run(true);
-    },
-    onUpdateRate: async (rowIndex: number, monthKey: string, value: number) => {
-      const t = await getGoogleAccessToken();
-      await updateRate(t, state.spreadsheetId, rowIndex, data.months, monthKey, value);
-      invalidate(state, 'currencies');
-    },
-  });
-
-  const run = async (force = false): Promise<void> => {
-    if (!state.cache.currencies || force) {
-      pageWrap.replaceChildren(
-        el('div', { className: 'loading' }, [
-          el('span', { className: 'spinner' }),
-          el('span', { textContent: 'Cargando divisas...' }),
-        ]),
-      );
-    }
-    try {
-      const data = await loadCurrencies(state, force);
-      pageWrap.replaceChildren(buildView(data));
-    } catch (e) {
-      pageWrap.replaceChildren(
-        el('div', { className: 'state state--error', textContent: e instanceof Error ? e.message : String(e) }),
-      );
-    }
-  };
-
-  if (state.cache.currencies) {
-    pageWrap.append(buildView(state.cache.currencies));
-  } else {
-    void run();
-  }
-  return pageWrap;
 }
 
 function renderBankBalancesPage(state: AppState): HTMLElement {
@@ -526,14 +453,12 @@ function renderTransactionsPage(state: AppState): HTMLElement {
     transactions: TransactionRow[],
     categories: CategoryRow[],
     banksData: BankBalancesData,
-    currenciesData: CurrenciesData,
   ): HTMLElement => {
     const banks = banksData.entities.map(e => e.entity).filter(Boolean);
     return renderTransactions({
       transactions,
       categories,
       banks,
-      currencies: currenciesData.currencies,
       onAdd: async (tx: Transaction) => {
         const t = await getGoogleAccessToken();
         await addTransaction(t, state.spreadsheetId, tx);
@@ -556,7 +481,7 @@ function renderTransactionsPage(state: AppState): HTMLElement {
   };
 
   const hasAll = (): boolean =>
-    !!(state.cache.transactions && state.cache.categories && state.cache.banks && state.cache.currencies);
+    !!(state.cache.transactions && state.cache.categories && state.cache.banks);
 
   const run = async (force = false): Promise<void> => {
     if (!hasAll() || force) {
@@ -568,13 +493,12 @@ function renderTransactionsPage(state: AppState): HTMLElement {
       );
     }
     try {
-      const [transactions, categories, banksData, currenciesData] = await Promise.all([
+      const [transactions, categories, banksData] = await Promise.all([
         loadTransactions(state, force),
         loadCategories(state, force),
         loadBanks(state, force),
-        loadCurrencies(state, force),
       ]);
-      pageWrap.replaceChildren(buildView(transactions, categories, banksData, currenciesData));
+      pageWrap.replaceChildren(buildView(transactions, categories, banksData));
     } catch (e) {
       pageWrap.replaceChildren(
         el('div', { className: 'state state--error', textContent: e instanceof Error ? e.message : String(e) }),
@@ -587,7 +511,6 @@ function renderTransactionsPage(state: AppState): HTMLElement {
       state.cache.transactions!,
       state.cache.categories!,
       state.cache.banks!,
-      state.cache.currencies!,
     ));
   } else {
     void run();
@@ -618,7 +541,7 @@ async function init(): Promise<void> {
   await handleSession(session);
 }
 
-void init().catch(e => renderFullScreenState(e instanceof Error ? e.message : String(e), true));
+void init().catch(e => renderFullScreenState(e instanceof Error ? e.message : String(e), { isError: true }));
 
 // Mark intentionally-unused helper exported for future refresh-button integration
 void renderRefreshButton;

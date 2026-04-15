@@ -5,13 +5,11 @@ import { applyErrors, createField, type FieldHandle } from '../ui/field.ts';
 import { confirmDialog } from '../ui/confirm.ts';
 import type { Category, Transaction } from '../types.ts';
 import type { TransactionRow } from '../transactions.ts';
-import type { CurrencyRow } from '../currencies.ts';
 
 export interface TransactionsViewDeps {
   transactions: TransactionRow[];
   categories: Category[];
   banks: string[];
-  currencies: CurrencyRow[];
   onAdd: (tx: Transaction) => Promise<void>;
   onUpdate: (rowIndex: number, tx: Transaction) => Promise<void>;
   onDelete: (rowIndex: number) => Promise<void>;
@@ -379,35 +377,11 @@ function renderForm(
   amountInp.step = '0.01';
   amountInp.min = '0';
 
-  const currencySel = buildCurrencySelect(deps.currencies, editing?.currency ?? 'EUR');
-  const rateInp = inp('number', String(editing?.exchangeRate ?? 1), '1.0');
-  rateInp.step = '0.0001';
-
   const dateField = createField('Fecha', dateInp);
   const bankField = createField('Banco', bankSel);
   const categoryField = createField('Categoria', categorySelect);
   const descField = createField('Descripcion', descInp);
   const amountField = createField('Importe', amountInp);
-  const currencyField = createField('Divisa', currencySel);
-  const rateField = createField('Tasa a EUR', rateInp, 'Cuanto vale 1 unidad en EUR. Auto del mes, editable.');
-
-  const syncRateFromSheet = (): void => {
-    if (currencySel.value === 'EUR') {
-      rateInp.value = '1';
-      rateField.element.style.display = 'none';
-      return;
-    }
-    rateField.element.style.display = 'block';
-    const monthKey = dateInp.value.slice(0, 7);
-    const cur = deps.currencies.find(c => c.currency === currencySel.value);
-    const rate = cur?.rates[monthKey];
-    if (rate && rate > 0 && !editing) {
-      rateInp.value = String(rate);
-    }
-  };
-  currencySel.addEventListener('change', syncRateFromSheet);
-  dateInp.addEventListener('change', syncRateFromSheet);
-  syncRateFromSheet();
 
   const fields: Record<string, FieldHandle> = {
     date: dateField,
@@ -415,8 +389,6 @@ function renderForm(
     category: categoryField,
     description: descField,
     amount: amountField,
-    currency: currencyField,
-    rate: rateField,
   };
 
   const status = el('span', { className: 'page-header__sub' });
@@ -436,8 +408,6 @@ function renderForm(
         category: categorySelect.value,
         description: descInp.value,
         amount: amountInp.value,
-        currency: currencySel.value,
-        rate: rateInp.value,
       });
 
       if (applyErrors(fields, errors)) return;
@@ -450,11 +420,9 @@ function renderForm(
         bank: bankSel.value,
         description: descInp.value.trim(),
         amount: signedAmount,
-        currency: currencySel.value,
         type: cat.type,
         group: cat.group,
         subgroup: cat.subgroup,
-        exchangeRate: currencySel.value === 'EUR' ? 1 : Number(rateInp.value),
       };
 
       submitBtn.disabled = true;
@@ -494,10 +462,9 @@ function renderForm(
 
 function validateTx(v: {
   date: string; bank: string; category: string; description: string;
-  amount: string; currency: string; rate: string;
+  amount: string;
 }): Record<string, string | null> {
   const amountNum = Number(v.amount);
-  const rateNum = Number(v.rate);
   return {
     date: !v.date ? 'Selecciona una fecha' : null,
     bank: !v.bank ? 'Selecciona un banco' : null,
@@ -505,26 +472,7 @@ function validateTx(v: {
     description: v.description.trim().length < 2 ? 'Minimo 2 caracteres' : null,
     amount: !v.amount || Number.isNaN(amountNum) ? 'Importe invalido'
       : Math.abs(amountNum) === 0 ? 'No puede ser 0' : null,
-    currency: !v.currency ? 'Selecciona una divisa' : null,
-    rate: v.currency === 'EUR'
-      ? null
-      : (!v.rate || Number.isNaN(rateNum) || rateNum <= 0 ? 'Debe ser mayor que 0' : null),
   };
-}
-
-function buildCurrencySelect(currencies: CurrencyRow[], selected: string): HTMLSelectElement {
-  const s = document.createElement('select');
-  s.className = 'select';
-  const codes = new Set<string>(['EUR', ...currencies.map(c => c.currency)]);
-  const ordered = ['EUR', ...Array.from(codes).filter(c => c !== 'EUR').sort()];
-  for (const code of ordered) {
-    const o = document.createElement('option');
-    o.value = code;
-    o.textContent = code;
-    if (code === selected) o.selected = true;
-    s.append(o);
-  }
-  return s;
 }
 
 function buildBankSelect(banks: string[], editing: TransactionRow | null): HTMLSelectElement {
@@ -635,7 +583,7 @@ function renderTable(
         ]),
       ]),
       el('td', { textContent: tx.bank || '—' }),
-      el('td', { className: amountCls, textContent: `${formatAmount(tx.amount)} ${tx.currency}` }),
+      el('td', { className: amountCls, textContent: `${formatAmount(tx.amount)} EUR` }),
       el('td', { className: 'tx-actions' }, [
         el('button', {
           className: 'btn btn--ghost btn--sm',

@@ -3,7 +3,7 @@ import { appendRows, writeRange } from './sheets.ts';
 const CONFIG_HEADERS = ['Property', 'Value'];
 const CATEGORIES_HEADERS = ['Type', 'Group', 'Subgroup', 'Active'];
 const TRANSACTIONS_HEADERS = [
-  'Date', 'Bank', 'Description', 'Amount', 'Currency', 'Type', 'Group', 'Subgroup', 'ExchangeRate',
+  'Date', 'Bank', 'Description', 'Amount', 'Type', 'Group', 'Subgroup',
 ];
 
 function monthColumns(count = 18): string[] {
@@ -86,7 +86,7 @@ export async function seedSpreadsheet(token: string, spreadsheetId: string): Pro
   await writeRange({
     token,
     spreadsheetId,
-    range: 'transactions!A1:I1',
+    range: 'transactions!A1:G1',
     values: [TRANSACTIONS_HEADERS],
   });
 
@@ -95,15 +95,5 @@ export async function seedSpreadsheet(token: string, spreadsheetId: string): Pro
     spreadsheetId,
     range: 'bank_balances!A1',
     values: [['Entity', 'Type', 'Limit', ...months]],
-  });
-
-  await writeRange({
-    token,
-    spreadsheetId,
-    range: 'currencies!A1',
-    values: [
-      ['Currency', ...months],
-      ['EUR', ...months.map(() => 1)],
-    ],
   });
 }

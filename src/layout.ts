@@ -18,7 +18,6 @@ const PRIMARY: NavLink[] = [
 
 const SECONDARY: NavLink[] = [
   { route: 'bank-balances', label: 'Bancos', icon: icons.bank },
-  { route: 'currencies', label: 'Divisas', icon: icons.currency },
   { route: 'config', label: 'Configuracion', icon: icons.config },
 ];
 

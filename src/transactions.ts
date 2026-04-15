@@ -11,11 +11,9 @@ function toRow(tx: Transaction): (string | number)[] {
     tx.bank,
     tx.description,
     tx.amount,
-    tx.currency,
     tx.type,
     tx.group,
     tx.subgroup,
-    tx.exchangeRate,
   ];
 }
 
@@ -26,15 +24,13 @@ function fromRow(row: string[], offset: number): TransactionRow {
     bank: row[1] ?? '',
     description: row[2] ?? '',
     amount: Number(row[3] ?? 0),
-    currency: row[4] ?? 'EUR',
-    type: (row[5] as TransactionRow['type']) ?? 'pagos',
-    group: row[6] ?? '',
-    subgroup: row[7] ?? '',
-    exchangeRate: Number(row[8] ?? 1),
+    type: (row[4] as TransactionRow['type']) ?? 'pagos',
+    group: row[5] ?? '',
+    subgroup: row[6] ?? '',
   };
 }
 
-export const TRANSACTIONS_RANGE = 'transactions!A2:I';
+export const TRANSACTIONS_RANGE = 'transactions!A2:G';
 
 export function parseTransactions(rows: string[][]): TransactionRow[] {
   return rows.map((r, i) => fromRow(r, i));
@@ -63,7 +59,7 @@ export async function updateTransaction(
   await writeRange({
     token,
     spreadsheetId,
-    range: `transactions!A${rowIndex}:I${rowIndex}`,
+    range: `transactions!A${rowIndex}:G${rowIndex}`,
     values: [toRow(tx)],
   });
 }

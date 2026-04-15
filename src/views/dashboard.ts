@@ -10,26 +10,24 @@ import {
 } from '../cashflow.ts';
 import type { Config } from '../types.ts';
 import type { TransactionRow } from '../transactions.ts';
-import type { CurrencyRow } from '../currencies.ts';
 import type { BankBalanceRow } from '../bank-balances.ts';
 
 export interface DashboardDeps {
   config: Config;
   spreadsheetId: string;
   transactions: TransactionRow[];
-  currencies: CurrencyRow[];
   banks: BankBalanceRow[];
   months: string[];
 }
 
 export function renderDashboard(deps: DashboardDeps): HTMLElement {
   const currentKey = currentMonthKey();
-  const monthlies = aggregateByMonth(deps.transactions, deps.currencies, deps.months);
+  const monthlies = aggregateByMonth(deps.transactions, deps.months);
   const currentAgg = monthlies.find(m => m.month === currentKey)
     ?? { month: currentKey, inflow: 0, outflow: 0, net: 0, count: 0 };
 
   const banks = bankSummary(deps.banks, currentKey);
-  const topCats = topCategoriesForMonth(deps.transactions, deps.currencies, currentKey);
+  const topCats = topCategoriesForMonth(deps.transactions, currentKey);
 
   const openLink = el('a', {
     href: `https://docs.google.com/spreadsheets/d/${deps.spreadsheetId}`,
