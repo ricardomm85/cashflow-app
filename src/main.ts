@@ -158,16 +158,22 @@ function renderAuth(): void {
 }
 
 function renderFullScreenState(msg: string, isError = false): void {
+  if (isError) {
+    app.replaceChildren(
+      el('div', { className: 'auth' }, [
+        el('div', { className: 'auth__card' }, [
+          el('p', { className: 'state state--error', textContent: msg }),
+          el('button', { className: 'btn', textContent: 'Cerrar sesion', onclick: () => signOut() }),
+        ]),
+      ]),
+    );
+    return;
+  }
   app.replaceChildren(
-    el('div', { className: 'auth' }, [
-      el('div', { className: 'auth__card' }, [
-        ...(isError
-          ? [el('p', { className: 'state state--error', textContent: msg }),
-             el('button', { className: 'btn', textContent: 'Cerrar sesion', onclick: () => signOut() })]
-          : [el('div', { className: 'loading' }, [
-              el('span', { className: 'spinner' }),
-              el('span', { textContent: msg }),
-            ])]),
+    el('div', { className: 'fullscreen-loading' }, [
+      el('div', { className: 'loading' }, [
+        el('span', { className: 'spinner' }),
+        el('span', { textContent: msg }),
       ]),
     ]),
   );

@@ -532,7 +532,7 @@ function buildBankSelect(banks: string[], editing: TransactionRow | null): HTMLS
   s.className = 'select';
   const placeholder = document.createElement('option');
   placeholder.value = '';
-  placeholder.textContent = banks.length ? 'Selecciona un banco' : 'Sin bancos registrados';
+  placeholder.textContent = banks.length ? 'Seleccionar' : 'Sin bancos registrados';
   placeholder.disabled = true;
   if (!editing?.bank) placeholder.selected = true;
   s.append(placeholder);
@@ -558,7 +558,7 @@ function buildCategorySelect(active: Category[], editing: TransactionRow | null)
   s.className = 'select';
   const placeholder = document.createElement('option');
   placeholder.value = '';
-  placeholder.textContent = 'Selecciona una categoria';
+  placeholder.textContent = 'Seleccionar';
   placeholder.disabled = true;
   if (!editing) placeholder.selected = true;
   s.append(placeholder);
