@@ -21,7 +21,7 @@ export async function signInWithGoogle(): Promise<void> {
     provider: 'google',
     options: {
       scopes: GOOGLE_SCOPES,
-      redirectTo: window.location.origin,
+      redirectTo: window.location.origin + window.location.pathname,
       queryParams: {
         access_type: 'offline',
         prompt: 'consent',
