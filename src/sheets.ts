@@ -22,7 +22,8 @@ async function fetchWithRetry(
     const res = await fetch(url, init);
     if (res.status !== 429 && res.status < 500) return res;
     if (attempt === maxRetries) {
-      throw new Error(`${label} failed: ${res.status} ${await res.text()}`);
+      console.error(`${label} failed: ${res.status}`, await res.text());
+      throw new Error(`${label} failed (${res.status}). Intenta de nuevo.`);
     }
     const retryAfter = Number(res.headers.get('Retry-After')) * 1000;
     const wait = retryAfter > 0 ? retryAfter : delay + Math.random() * 300;
@@ -35,7 +36,7 @@ async function fetchWithRetry(
 export async function readRange({ token, spreadsheetId, range }: SheetsRequest): Promise<string[][]> {
   const url = `${SHEETS_API}/${spreadsheetId}/values/${encodeURIComponent(range)}`;
   const res = await fetchWithRetry(url, { headers: { Authorization: `Bearer ${token}` } }, 'Sheets read');
-  if (!res.ok) throw new Error(`Sheets read failed: ${res.status} ${await res.text()}`);
+  if (!res.ok) { console.error('Sheets read failed:', res.status, await res.text()); throw new Error(`Error al leer datos (${res.status}).`); }
   const data = await res.json();
   return (data.values ?? []) as string[][];
 }
@@ -52,7 +53,7 @@ export async function batchRead({
   const qs = ranges.map(r => `ranges=${encodeURIComponent(r)}`).join('&');
   const url = `${SHEETS_API}/${spreadsheetId}/values:batchGet?${qs}`;
   const res = await fetchWithRetry(url, { headers: { Authorization: `Bearer ${token}` } }, 'Sheets batchGet');
-  if (!res.ok) throw new Error(`Sheets batchGet failed: ${res.status} ${await res.text()}`);
+  if (!res.ok) { console.error('Sheets batchGet failed:', res.status, await res.text()); throw new Error(`Error al leer datos (${res.status}).`); }
   const data = await res.json() as { valueRanges?: { values?: string[][] }[] };
   return (data.valueRanges ?? []).map(vr => (vr.values ?? []) as string[][]);
 }
@@ -72,7 +73,7 @@ export async function writeRange({
     },
     body: JSON.stringify({ values }),
   }, 'Sheets write');
-  if (!res.ok) throw new Error(`Sheets write failed: ${res.status} ${await res.text()}`);
+  if (!res.ok) { console.error('Sheets write failed:', res.status, await res.text()); throw new Error(`Error al guardar datos (${res.status}).`); }
 }
 
 export async function appendRows({
@@ -90,7 +91,7 @@ export async function appendRows({
     },
     body: JSON.stringify({ values }),
   }, 'Sheets append');
-  if (!res.ok) throw new Error(`Sheets append failed: ${res.status} ${await res.text()}`);
+  if (!res.ok) { console.error('Sheets append failed:', res.status, await res.text()); throw new Error(`Error al agregar datos (${res.status}).`); }
 }
 
 export async function createSpreadsheet(token: string, title: string): Promise<string> {
@@ -111,7 +112,7 @@ export async function createSpreadsheet(token: string, title: string): Promise<s
       ],
     }),
   }, 'Create spreadsheet');
-  if (!res.ok) throw new Error(`Create failed: ${res.status} ${await res.text()}`);
+  if (!res.ok) { console.error('Create spreadsheet failed:', res.status, await res.text()); throw new Error(`Error al crear hoja (${res.status}).`); }
   const data = await res.json();
   return data.spreadsheetId as string;
 }

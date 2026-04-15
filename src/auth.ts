@@ -32,7 +32,10 @@ export async function signInWithGoogle(): Promise<void> {
 }
 
 export async function signOut(): Promise<void> {
-  localStorage.removeItem(TOKEN_KEY);
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const key = localStorage.key(i);
+    if (key?.startsWith('cashflow.')) localStorage.removeItem(key);
+  }
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
 }
@@ -80,7 +83,7 @@ export async function getGoogleAccessToken(): Promise<string> {
       grant_type: 'refresh_token',
     }),
   });
-  if (!res.ok) throw new Error(`Refresh falló: ${res.status} ${await res.text()}`);
+  if (!res.ok) { console.error('Token refresh failed:', res.status, await res.text()); throw new Error('Error al renovar sesión. Vuelve a iniciar sesión.'); }
   const data = (await res.json()) as { access_token: string; expires_in: number };
   const refreshed: StoredToken = {
     accessToken: data.access_token,
