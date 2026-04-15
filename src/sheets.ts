@@ -7,14 +7,54 @@ interface SheetsRequest {
   range: string;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  label: string,
+  maxRetries = 4,
+): Promise<Response> {
+  let delay = 800;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const res = await fetch(url, init);
+    if (res.status !== 429 && res.status < 500) return res;
+    if (attempt === maxRetries) {
+      throw new Error(`${label} failed: ${res.status} ${await res.text()}`);
+    }
+    const retryAfter = Number(res.headers.get('Retry-After')) * 1000;
+    const wait = retryAfter > 0 ? retryAfter : delay + Math.random() * 300;
+    await sleep(wait);
+    delay *= 2;
+  }
+  throw new Error(`${label} failed: exhausted retries`);
+}
+
 export async function readRange({ token, spreadsheetId, range }: SheetsRequest): Promise<string[][]> {
   const url = `${SHEETS_API}/${spreadsheetId}/values/${encodeURIComponent(range)}`;
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const res = await fetchWithRetry(url, { headers: { Authorization: `Bearer ${token}` } }, 'Sheets read');
   if (!res.ok) throw new Error(`Sheets read failed: ${res.status} ${await res.text()}`);
   const data = await res.json();
   return (data.values ?? []) as string[][];
+}
+
+export async function batchRead({
+  token,
+  spreadsheetId,
+  ranges,
+}: {
+  token: string;
+  spreadsheetId: string;
+  ranges: string[];
+}): Promise<string[][][]> {
+  const qs = ranges.map(r => `ranges=${encodeURIComponent(r)}`).join('&');
+  const url = `${SHEETS_API}/${spreadsheetId}/values:batchGet?${qs}`;
+  const res = await fetchWithRetry(url, { headers: { Authorization: `Bearer ${token}` } }, 'Sheets batchGet');
+  if (!res.ok) throw new Error(`Sheets batchGet failed: ${res.status} ${await res.text()}`);
+  const data = await res.json() as { valueRanges?: { values?: string[][] }[] };
+  return (data.valueRanges ?? []).map(vr => (vr.values ?? []) as string[][]);
 }
 
 export async function writeRange({
@@ -24,14 +64,14 @@ export async function writeRange({
   values,
 }: SheetsRequest & { values: (string | number)[][] }): Promise<void> {
   const url = `${SHEETS_API}/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
-  const res = await fetch(url, {
+  const res = await fetchWithRetry(url, {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ values }),
-  });
+  }, 'Sheets write');
   if (!res.ok) throw new Error(`Sheets write failed: ${res.status} ${await res.text()}`);
 }
 
@@ -42,19 +82,19 @@ export async function appendRows({
   values,
 }: SheetsRequest & { values: (string | number)[][] }): Promise<void> {
   const url = `${SHEETS_API}/${spreadsheetId}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`;
-  const res = await fetch(url, {
+  const res = await fetchWithRetry(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ values }),
-  });
+  }, 'Sheets append');
   if (!res.ok) throw new Error(`Sheets append failed: ${res.status} ${await res.text()}`);
 }
 
 export async function createSpreadsheet(token: string, title: string): Promise<string> {
-  const res = await fetch(SHEETS_API, {
+  const res = await fetchWithRetry(SHEETS_API, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -70,7 +110,7 @@ export async function createSpreadsheet(token: string, title: string): Promise<s
         { properties: { title: 'currencies' } },
       ],
     }),
-  });
+  }, 'Create spreadsheet');
   if (!res.ok) throw new Error(`Create failed: ${res.status} ${await res.text()}`);
   const data = await res.json();
   return data.spreadsheetId as string;
@@ -78,9 +118,9 @@ export async function createSpreadsheet(token: string, title: string): Promise<s
 
 export async function findSpreadsheet(token: string, title: string): Promise<string | null> {
   const q = encodeURIComponent(`name='${title}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`);
-  const res = await fetch(`${DRIVE_API}?q=${q}&fields=files(id,name)`, {
+  const res = await fetchWithRetry(`${DRIVE_API}?q=${q}&fields=files(id,name)`, {
     headers: { Authorization: `Bearer ${token}` },
-  });
+  }, 'Drive search');
   if (!res.ok) throw new Error(`Drive search failed: ${res.status}`);
   const data = await res.json();
   return data.files?.[0]?.id ?? null;

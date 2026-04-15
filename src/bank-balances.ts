@@ -10,11 +10,9 @@ export interface BankBalancesData {
   entities: BankBalanceRow[];
 }
 
-export async function readBankBalances(
-  token: string,
-  spreadsheetId: string,
-): Promise<BankBalancesData> {
-  const rows = await readRange({ token, spreadsheetId, range: 'bank_balances!A1:ZZ' });
+export const BANK_BALANCES_RANGE = 'bank_balances!A1:ZZ';
+
+export function parseBankBalances(rows: string[][]): BankBalancesData {
   if (!rows.length) return { months: [], entities: [] };
 
   const header = rows[0]!;
@@ -37,6 +35,14 @@ export async function readBankBalances(
   });
 
   return { months, entities };
+}
+
+export async function readBankBalances(
+  token: string,
+  spreadsheetId: string,
+): Promise<BankBalancesData> {
+  const rows = await readRange({ token, spreadsheetId, range: BANK_BALANCES_RANGE });
+  return parseBankBalances(rows);
 }
 
 function toRow(entity: BankBalance, months: string[]): (string | number)[] {

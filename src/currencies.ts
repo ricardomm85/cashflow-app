@@ -10,11 +10,9 @@ export interface CurrenciesData {
   currencies: CurrencyRow[];
 }
 
-export async function readCurrencies(
-  token: string,
-  spreadsheetId: string,
-): Promise<CurrenciesData> {
-  const rows = await readRange({ token, spreadsheetId, range: 'currencies!A1:ZZ' });
+export const CURRENCIES_RANGE = 'currencies!A1:ZZ';
+
+export function parseCurrencies(rows: string[][]): CurrenciesData {
   if (!rows.length) return { months: [], currencies: [] };
 
   const header = rows[0]!;
@@ -35,6 +33,14 @@ export async function readCurrencies(
   });
 
   return { months, currencies };
+}
+
+export async function readCurrencies(
+  token: string,
+  spreadsheetId: string,
+): Promise<CurrenciesData> {
+  const rows = await readRange({ token, spreadsheetId, range: CURRENCIES_RANGE });
+  return parseCurrencies(rows);
 }
 
 export async function addCurrency(

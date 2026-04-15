@@ -5,8 +5,9 @@ export interface CategoryRow extends Category {
   rowIndex: number;
 }
 
-export async function listCategories(token: string, spreadsheetId: string): Promise<CategoryRow[]> {
-  const rows = await readRange({ token, spreadsheetId, range: 'categories!A2:D' });
+export const CATEGORIES_RANGE = 'categories!A2:D';
+
+export function parseCategories(rows: string[][]): CategoryRow[] {
   return rows.map((r, i) => ({
     rowIndex: i + 2,
     type: (r[0] as Category['type']) ?? 'pagos',
@@ -14,6 +15,11 @@ export async function listCategories(token: string, spreadsheetId: string): Prom
     subgroup: r[2] ?? '',
     active: String(r[3] ?? '').toUpperCase() === 'TRUE',
   }));
+}
+
+export async function listCategories(token: string, spreadsheetId: string): Promise<CategoryRow[]> {
+  const rows = await readRange({ token, spreadsheetId, range: CATEGORIES_RANGE });
+  return parseCategories(rows);
 }
 
 export function activeOnly(categories: CategoryRow[]): CategoryRow[] {

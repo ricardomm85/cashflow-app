@@ -34,9 +34,15 @@ function fromRow(row: string[], offset: number): TransactionRow {
   };
 }
 
-export async function listTransactions(token: string, spreadsheetId: string): Promise<TransactionRow[]> {
-  const rows = await readRange({ token, spreadsheetId, range: 'transactions!A2:I' });
+export const TRANSACTIONS_RANGE = 'transactions!A2:I';
+
+export function parseTransactions(rows: string[][]): TransactionRow[] {
   return rows.map((r, i) => fromRow(r, i));
+}
+
+export async function listTransactions(token: string, spreadsheetId: string): Promise<TransactionRow[]> {
+  const rows = await readRange({ token, spreadsheetId, range: TRANSACTIONS_RANGE });
+  return parseTransactions(rows);
 }
 
 export async function addTransaction(token: string, spreadsheetId: string, tx: Transaction): Promise<void> {

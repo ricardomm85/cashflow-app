@@ -8,7 +8,7 @@ import {
   getSpreadsheetId,
   setSpreadsheetId,
 } from './auth.ts';
-import { createSpreadsheet, findSpreadsheet } from './sheets.ts';
+import { batchRead, createSpreadsheet, findSpreadsheet } from './sheets.ts';
 import { seedSpreadsheet } from './seed.ts';
 import { isConfigComplete, readConfig, writeConfig } from './config.ts';
 import type { Config } from './types.ts';
@@ -18,13 +18,44 @@ import { el } from './dom.ts';
 import { renderConfigView } from './views/config.ts';
 import { renderDashboard } from './views/dashboard.ts';
 import { renderTransactions } from './views/transactions.ts';
-import { addTransaction, deleteTransaction, listTransactions, updateTransaction, type TransactionRow } from './transactions.ts';
-import { addCategory, listCategories, setCategoryActive, updateCategory, type CategoryRow } from './categories.ts';
+import {
+  addTransaction,
+  deleteTransaction,
+  listTransactions,
+  parseTransactions,
+  TRANSACTIONS_RANGE,
+  updateTransaction,
+  type TransactionRow,
+} from './transactions.ts';
+import {
+  addCategory,
+  CATEGORIES_RANGE,
+  listCategories,
+  parseCategories,
+  setCategoryActive,
+  updateCategory,
+  type CategoryRow,
+} from './categories.ts';
 import { renderCategories } from './views/categories.ts';
-import { addEntity, readBankBalances, updateBalance, type BankBalancesData } from './bank-balances.ts';
+import {
+  addEntity,
+  BANK_BALANCES_RANGE,
+  parseBankBalances,
+  readBankBalances,
+  updateBalance,
+  type BankBalancesData,
+} from './bank-balances.ts';
 import { renderBankBalances } from './views/bank-balances.ts';
-import { addCurrency, readCurrencies, updateRate, type CurrenciesData } from './currencies.ts';
+import {
+  addCurrency,
+  CURRENCIES_RANGE,
+  parseCurrencies,
+  readCurrencies,
+  updateRate,
+  type CurrenciesData,
+} from './currencies.ts';
 import { renderCurrencies } from './views/currencies.ts';
+import { invalidateCache, readCache, writeCache } from './cache.ts';
 import type { BankBalance, Category, Transaction } from './types.ts';
 
 import { initTheme } from './theme.ts';
@@ -52,40 +83,61 @@ function emptyCache(): Cache {
   return { transactions: null, categories: null, banks: null, currencies: null };
 }
 
-function invalidate(state: AppState, ...keys: (keyof Cache)[]): void {
-  for (const k of keys) state.cache[k] = null as never;
-}
-
 async function loadTransactions(state: AppState, force = false): Promise<TransactionRow[]> {
   if (!force && state.cache.transactions) return state.cache.transactions;
+  if (!force) {
+    const cached = readCache<TransactionRow[]>(state.spreadsheetId, 'transactions');
+    if (cached) { state.cache.transactions = cached; return cached; }
+  }
   const token = await getGoogleAccessToken();
   const data = await listTransactions(token, state.spreadsheetId);
   state.cache.transactions = data;
+  writeCache(state.spreadsheetId, 'transactions', data);
   return data;
 }
 
 async function loadCategories(state: AppState, force = false): Promise<CategoryRow[]> {
   if (!force && state.cache.categories) return state.cache.categories;
+  if (!force) {
+    const cached = readCache<CategoryRow[]>(state.spreadsheetId, 'categories');
+    if (cached) { state.cache.categories = cached; return cached; }
+  }
   const token = await getGoogleAccessToken();
   const data = await listCategories(token, state.spreadsheetId);
   state.cache.categories = data;
+  writeCache(state.spreadsheetId, 'categories', data);
   return data;
 }
 
 async function loadBanks(state: AppState, force = false): Promise<BankBalancesData> {
   if (!force && state.cache.banks) return state.cache.banks;
+  if (!force) {
+    const cached = readCache<BankBalancesData>(state.spreadsheetId, 'banks');
+    if (cached) { state.cache.banks = cached; return cached; }
+  }
   const token = await getGoogleAccessToken();
   const data = await readBankBalances(token, state.spreadsheetId);
   state.cache.banks = data;
+  writeCache(state.spreadsheetId, 'banks', data);
   return data;
 }
 
 async function loadCurrencies(state: AppState, force = false): Promise<CurrenciesData> {
   if (!force && state.cache.currencies) return state.cache.currencies;
+  if (!force) {
+    const cached = readCache<CurrenciesData>(state.spreadsheetId, 'currencies');
+    if (cached) { state.cache.currencies = cached; return cached; }
+  }
   const token = await getGoogleAccessToken();
   const data = await readCurrencies(token, state.spreadsheetId);
   state.cache.currencies = data;
+  writeCache(state.spreadsheetId, 'currencies', data);
   return data;
+}
+
+function invalidate(state: AppState, ...keys: (keyof Cache)[]): void {
+  for (const k of keys) state.cache[k] = null as never;
+  invalidateCache(state.spreadsheetId, ...keys);
 }
 
 function renderAuth(): void {
@@ -210,12 +262,53 @@ async function handleSession(session: Session | null): Promise<void> {
 }
 
 async function prefetch(state: AppState): Promise<void> {
-  await Promise.allSettled([
-    loadTransactions(state),
-    loadCategories(state),
-    loadBanks(state),
-    loadCurrencies(state),
-  ]);
+  const needsFetch: (keyof Cache)[] = [];
+  if (!readCache<TransactionRow[]>(state.spreadsheetId, 'transactions')) needsFetch.push('transactions');
+  if (!readCache<CategoryRow[]>(state.spreadsheetId, 'categories')) needsFetch.push('categories');
+  if (!readCache<BankBalancesData>(state.spreadsheetId, 'banks')) needsFetch.push('banks');
+  if (!readCache<CurrenciesData>(state.spreadsheetId, 'currencies')) needsFetch.push('currencies');
+
+  // Hydrate memory cache from any fresh localStorage entries
+  state.cache.transactions ??= readCache<TransactionRow[]>(state.spreadsheetId, 'transactions');
+  state.cache.categories ??= readCache<CategoryRow[]>(state.spreadsheetId, 'categories');
+  state.cache.banks ??= readCache<BankBalancesData>(state.spreadsheetId, 'banks');
+  state.cache.currencies ??= readCache<CurrenciesData>(state.spreadsheetId, 'currencies');
+
+  if (!needsFetch.length) return;
+
+  try {
+    const rangeMap: Record<keyof Cache, string> = {
+      transactions: TRANSACTIONS_RANGE,
+      categories: CATEGORIES_RANGE,
+      banks: BANK_BALANCES_RANGE,
+      currencies: CURRENCIES_RANGE,
+    };
+    const ranges = needsFetch.map(k => rangeMap[k]);
+    const token = await getGoogleAccessToken();
+    const results = await batchRead({ token, spreadsheetId: state.spreadsheetId, ranges });
+    needsFetch.forEach((key, idx) => {
+      const rows = results[idx] ?? [];
+      if (key === 'transactions') {
+        const data = parseTransactions(rows);
+        state.cache.transactions = data;
+        writeCache(state.spreadsheetId, 'transactions', data);
+      } else if (key === 'categories') {
+        const data = parseCategories(rows);
+        state.cache.categories = data;
+        writeCache(state.spreadsheetId, 'categories', data);
+      } else if (key === 'banks') {
+        const data = parseBankBalances(rows);
+        state.cache.banks = data;
+        writeCache(state.spreadsheetId, 'banks', data);
+      } else {
+        const data = parseCurrencies(rows);
+        state.cache.currencies = data;
+        writeCache(state.spreadsheetId, 'currencies', data);
+      }
+    });
+  } catch {
+    // best-effort; individual loaders will retry per section
+  }
 }
 
 function renderRefreshButton(onClick: () => void): HTMLButtonElement {
