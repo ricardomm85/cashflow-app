@@ -3,10 +3,9 @@ export type Route =
   | 'transactions'
   | 'categories'
   | 'bank-balances'
-  | 'currencies'
   | 'config';
 
-const VALID: Route[] = ['dashboard', 'transactions', 'categories', 'bank-balances', 'currencies', 'config'];
+const VALID: Route[] = ['dashboard', 'transactions', 'categories', 'bank-balances', 'config'];
 
 export function currentRoute(): Route {
   const hash = window.location.hash.replace(/^#\/?/, '');

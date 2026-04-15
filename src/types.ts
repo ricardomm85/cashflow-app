@@ -20,11 +20,9 @@ export interface Transaction {
   bank: string;
   description: string;
   amount: number;
-  currency: string;
   type: TxType;
   group: string;
   subgroup: string;
-  exchangeRate: number;
 }
 
 export interface BankBalance {
@@ -32,9 +30,4 @@ export interface BankBalance {
   type: 'bank' | 'credit_line';
   limit: number | null;
   balances: Record<string, number>;
-}
-
-export interface CurrencyRate {
-  currency: string;
-  rates: Record<string, number>;
 }

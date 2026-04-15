@@ -11,7 +11,7 @@ App web para gestionar flujo de caja de pymes/freelancers. Datos en Google Sheet
 - **Idioma codigo**: TypeScript
 - **Backend**: Ninguno
 
-## Estructura Google Sheets (5 hojas por usuario)
+## Estructura Google Sheets (4 hojas por usuario)
 
 ### `config` — [Property, Value]
 Company Name, Start Date, VAT Sales, VAT Expenses, Forecast Mode
@@ -19,20 +19,15 @@ Company Name, Start Date, VAT Sales, VAT Expenses, Forecast Mode
 ### `categories` — [Type, Group, Subgroup, Active]
 51 categorias default. Types: `cobros`, `pagos`, `otros`. Jerarquia de 3 niveles.
 
-### `transactions` — [Date, Bank, Description, Amount, Currency, Type, Group, Subgroup, ExchangeRate]
+### `transactions` — [Date, Bank, Description, Amount, Type, Group, Subgroup]
 - Date: YYYY-MM-DD
 - Amount: positivo = cobro, negativo = pago
-- Currency: EUR, USD, GBP, JPY...
-- ExchangeRate: tasa de conversion a EUR (1.0 para EUR)
+- Moneda unica: EUR
 
 ### `bank_balances` — [Entity, Type, Limit, YYYY-MM ×18]
 - Type: `bank` | `credit_line`
 - Limit: limite de credito (solo credit_line)
 - Columnas mensuales: saldos
-
-### `currencies` — [Currency, YYYY-MM ×18]
-- EUR siempre fila 1, valores = 1.0
-- Otras monedas: tasa relativa a EUR por mes
 
 ## Convenciones
 

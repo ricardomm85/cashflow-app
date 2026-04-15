@@ -108,7 +108,6 @@ export async function createSpreadsheet(token: string, title: string): Promise<s
         { properties: { title: 'categories' } },
         { properties: { title: 'transactions' } },
         { properties: { title: 'bank_balances' } },
-        { properties: { title: 'currencies' } },
       ],
     }),
   }, 'Create spreadsheet');
