@@ -21,10 +21,14 @@ const SECONDARY: NavLink[] = [
   { route: 'config', label: 'Configuracion', icon: icons.config },
 ];
 
-function navItem(link: NavLink, active: boolean): HTMLButtonElement {
+function navItem(link: NavLink, active: boolean, disabled: boolean): HTMLButtonElement {
+  const classes = ['nav-item'];
+  if (active) classes.push('nav-item--active');
+  if (disabled) classes.push('nav-item--disabled');
   return el('button', {
-    className: active ? 'nav-item nav-item--active' : 'nav-item',
-    onclick: () => navigate(link.route),
+    className: classes.join(' '),
+    disabled,
+    onclick: disabled ? undefined : () => navigate(link.route),
   }, [
     link.icon(),
     el('span', { textContent: link.label }),
@@ -63,9 +67,11 @@ export function renderShell(opts: {
   userPhoto?: string;
   companyName?: string;
   content: HTMLElement;
+  lockNav?: boolean;
 }): HTMLElement {
   const active = currentRoute();
   const company = opts.companyName?.trim();
+  const lockNav = opts.lockNav ?? false;
 
   const brandBlock = el('div', { className: 'sidebar__brand' }, [
     el('div', { className: 'sidebar__brand-mark', textContent: 'C' }),
@@ -81,9 +87,9 @@ export function renderShell(opts: {
     brandBlock,
     el('nav', { className: 'sidebar__nav' }, [
       el('div', { className: 'sidebar__section', textContent: 'General' }),
-      ...PRIMARY.map(l => navItem(l, l.route === active)),
+      ...PRIMARY.map(l => navItem(l, l.route === active, lockNav)),
       el('div', { className: 'sidebar__section', textContent: 'Datos maestros' }),
-      ...SECONDARY.map(l => navItem(l, l.route === active)),
+      ...SECONDARY.map(l => navItem(l, l.route === active, lockNav)),
     ]),
     el('div', { className: 'sidebar__footer' }, [
       renderThemeToggle(),

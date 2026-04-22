@@ -8,9 +8,12 @@ import {
   getSpreadsheetId,
   setSpreadsheetId,
 } from './auth.ts';
-import { batchRead, createSpreadsheet, findSpreadsheet } from './sheets.ts';
+import { batchRead, createSpreadsheet, isSpreadsheetTrashed } from './sheets.ts';
 import { seedSpreadsheet } from './seed.ts';
 import { runMigrations } from './migrate.ts';
+import { pickSpreadsheet } from './picker.ts';
+import { readLanzadera, writeLanzaderaToTarget } from './import-lanzadera.ts';
+import { renderOnboardingView } from './views/onboarding.ts';
 import { isConfigComplete, readConfig, writeConfig } from './config.ts';
 import type { Config } from './types.ts';
 import { currentRoute, navigate, onRouteChange } from './router.ts';
@@ -54,7 +57,6 @@ import { initTheme } from './theme.ts';
 
 initTheme();
 
-const SHEET_TITLE = 'Cashflow';
 const app = document.getElementById('app')!;
 
 interface Cache {
@@ -135,13 +137,20 @@ function renderAuth(): void {
   );
 }
 
-function renderFullScreenState(msg: string, opts?: { isError?: boolean; onRetry?: () => void }): void {
+function renderFullScreenState(msg: string, opts?: {
+  isError?: boolean;
+  onRetry?: () => void;
+  onChangeSheet?: () => void;
+}): void {
   const isError = opts?.isError ?? false;
   const errorChildren: (HTMLElement | string)[] = [
     el('p', { className: 'state state--error', textContent: msg }),
   ];
   if (opts?.onRetry) {
     errorChildren.push(el('button', { className: 'btn btn--primary', textContent: 'Reintentar', onclick: opts.onRetry }));
+  }
+  if (opts?.onChangeSheet) {
+    errorChildren.push(el('button', { className: 'btn btn--accent', textContent: 'Volver a configurar', onclick: opts.onChangeSheet }));
   }
   errorChildren.push(el('button', { className: 'btn', textContent: 'Cerrar sesion', onclick: () => signOut() }));
 
@@ -193,21 +202,36 @@ function renderView(state: AppState, saveConfig: (c: Config) => Promise<void>): 
   );
 }
 
-async function ensureSpreadsheet(token: string): Promise<string> {
-  const existing = await getSpreadsheetId();
-  if (existing) return existing;
+const SHEET_TITLE = 'Cashflow';
 
-  const found = await findSpreadsheet(token, SHEET_TITLE);
-  if (found) {
-    await setSpreadsheetId(found);
-    return found;
-  }
-
-  renderFullScreenState('Creando hoja de Cashflow...');
-  const created = await createSpreadsheet(token, SHEET_TITLE);
-  await seedSpreadsheet(token, created);
-  await setSpreadsheetId(created);
-  return created;
+function renderOnboarding(session: Session): void {
+  app.replaceChildren(
+    renderOnboardingView({
+      onStartEmpty: async () => {
+        const token = await getGoogleAccessToken();
+        const id = await createSpreadsheet(token, SHEET_TITLE);
+        await seedSpreadsheet(token, id);
+        await setSpreadsheetId(id);
+        activeSessionId = null;
+        await handleSession(session);
+      },
+      onImport: async () => {
+        const picked = await pickSpreadsheet();
+        if (!picked) throw new Error('No se seleccionó ningún archivo.');
+        renderFullScreenState('Leyendo tu Excel Lanzadera...');
+        const token = await getGoogleAccessToken();
+        const data = await readLanzadera(token, picked.id, picked.mimeType);
+        renderFullScreenState('Creando tu hoja nueva...');
+        const newId = await createSpreadsheet(token, SHEET_TITLE);
+        renderFullScreenState('Volcando datos...');
+        await writeLanzaderaToTarget(token, newId, data);
+        await setSpreadsheetId(newId);
+        activeSessionId = null;
+        await handleSession(session);
+      },
+      onSignOut: () => { void signOut(); },
+    }),
+  );
 }
 
 let activeSessionId: string | null = null;
@@ -223,18 +247,49 @@ async function handleSession(session: Session | null): Promise<void> {
   activeSessionId = sid;
   try {
     renderFullScreenState('Cargando...');
+    const spreadsheetId = await getSpreadsheetId();
+    if (!spreadsheetId) {
+      activeSessionId = null;
+      renderOnboarding(session);
+      return;
+    }
     const token = await getGoogleAccessToken();
-    const spreadsheetId = await ensureSpreadsheet(token);
-    await runMigrations(token, spreadsheetId);
-    const partial = await readConfig(token, spreadsheetId);
+    if (await isSpreadsheetTrashed(token, spreadsheetId)) {
+      await setSpreadsheetId('');
+      activeSessionId = null;
+      renderOnboarding(session);
+      return;
+    }
+    let partial: Partial<Config>;
+    try {
+      await runMigrations(token, spreadsheetId);
+      partial = await readConfig(token, spreadsheetId);
+    } catch (e) {
+      activeSessionId = null;
+      const msg = e instanceof Error ? e.message : String(e);
+      renderFullScreenState(
+        `No se pudo cargar tu hoja. ${msg}`,
+        {
+          isError: true,
+          onChangeSheet: async () => {
+            await setSpreadsheetId('');
+            renderOnboarding(session);
+          },
+        },
+      );
+      console.error('Spreadsheet load failed:', e);
+      return;
+    }
 
     if (!isConfigComplete(partial)) {
       const onboard = async (c: Config): Promise<void> => {
         const t = await getGoogleAccessToken();
         await writeConfig(t, spreadsheetId, c);
         const state: AppState = { session, spreadsheetId, config: c, cache: emptyCache() };
+        const saveConfig = makeSaveConfig(state);
+        onRouteChange(() => renderView(state, saveConfig));
         navigate('dashboard');
-        renderView(state, makeSaveConfig(state));
+        renderView(state, saveConfig);
         void prefetch(state);
       };
       app.replaceChildren(
@@ -243,6 +298,7 @@ async function handleSession(session: Session | null): Promise<void> {
           userName: session.user.user_metadata?.full_name as string | undefined,
           userPhoto: session.user.user_metadata?.avatar_url as string | undefined,
           content: renderConfigView(partial, onboard, { firstTime: true }),
+          lockNav: true,
         }),
       );
       return;

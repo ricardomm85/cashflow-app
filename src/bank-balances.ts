@@ -1,4 +1,4 @@
-import { appendRows, readRange, writeRange } from './sheets.ts';
+import { appendRows, parseCellNumber, readRange, writeRange } from './sheets.ts';
 import type { BankBalance } from './types.ts';
 
 export interface BankBalanceRow extends BankBalance {
@@ -23,13 +23,14 @@ export function parseBankBalances(rows: string[][]): BankBalancesData {
     for (let m = 0; m < months.length; m++) {
       const key = months[m]!;
       const raw = r[3 + m];
-      balances[key] = raw === undefined || raw === '' ? 0 : Number(raw);
+      const parsed = parseCellNumber(raw);
+      balances[key] = Number.isNaN(parsed) ? 0 : parsed;
     }
     return {
       rowIndex: i + 2,
       entity: r[0] ?? '',
       type: (r[1] as BankBalance['type']) ?? 'bank',
-      limit: r[2] === undefined || r[2] === '' ? null : Number(r[2]),
+      limit: r[2] === undefined || r[2] === '' ? null : parseCellNumber(r[2]),
       balances,
     };
   });

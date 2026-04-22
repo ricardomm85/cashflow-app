@@ -1,4 +1,4 @@
-import { appendRows, fetchWithRetry, readRange, writeRange } from './sheets.ts';
+import { appendRows, fetchWithRetry, parseCellNumber, readRange, writeRange } from './sheets.ts';
 import type { Transaction } from './types.ts';
 
 export interface TransactionRow extends Transaction {
@@ -23,7 +23,7 @@ function fromRow(row: string[], offset: number): TransactionRow {
     date: row[0] ?? '',
     bank: row[1] ?? '',
     description: row[2] ?? '',
-    amount: Number(row[3] ?? 0),
+    amount: parseCellNumber(row[3]) || 0,
     type: (row[4] as TransactionRow['type']) ?? 'pagos',
     group: row[5] ?? '',
     subgroup: row[6] ?? '',
@@ -55,7 +55,7 @@ async function verifyRow(token: string, spreadsheetId: string, rowIndex: number,
   if (!row || !row[0]) {
     throw new Error('La fila ya no existe. Recarga los datos.');
   }
-  if (row[0] !== expected.date || row[2] !== expected.description || Number(row[3]) !== expected.amount) {
+  if (row[0] !== expected.date || row[2] !== expected.description || parseCellNumber(row[3]) !== expected.amount) {
     throw new Error('La fila ha cambiado. Recarga los datos e intenta de nuevo.');
   }
 }

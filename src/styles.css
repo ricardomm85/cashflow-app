@@ -254,6 +254,9 @@ html, body {
 .nav-item--active svg { opacity: 1; color: var(--accent); }
 .nav-item--active:hover { background: var(--accent-soft); color: var(--accent); }
 
+.nav-item--disabled { opacity: 0.4; cursor: not-allowed; }
+.nav-item--disabled:hover { background: transparent; color: var(--muted); }
+
 .sidebar__footer {
   margin-top: auto;
   padding: 1rem 0.5rem 0.25rem;

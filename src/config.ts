@@ -1,4 +1,4 @@
-import { readRange, writeRange } from './sheets.ts';
+import { parseCellNumber, readRange, writeRange } from './sheets.ts';
 import type { Config } from './types.ts';
 
 const PROPS: Array<[keyof Config, string]> = [
@@ -19,7 +19,7 @@ export async function readConfig(token: string, spreadsheetId: string): Promise<
     const raw = byLabel.get(label);
     if (raw === undefined || raw === '') continue;
     if (key === 'vatSales' || key === 'vatExpenses') {
-      out[key] = Number(raw);
+      out[key] = parseCellNumber(raw);
     } else {
       (out as Record<string, string>)[key] = raw;
     }

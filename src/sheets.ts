@@ -1,5 +1,4 @@
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
-const DRIVE_API = 'https://www.googleapis.com/drive/v3/files';
 
 interface SheetsRequest {
   token: string;
@@ -35,6 +34,15 @@ export async function fetchWithRetry(
 
 function validateSpreadsheetId(id: string): void {
   if (!/^[a-zA-Z0-9_-]{20,60}$/.test(id)) throw new Error('ID de hoja inválido.');
+}
+
+/** Parse a cell string that may use locale decimal separator (e.g. Spanish "0,1" → 0.1). */
+export function parseCellNumber(v: string | number | undefined | null): number {
+  if (v === null || v === undefined || v === '') return NaN;
+  if (typeof v === 'number') return v;
+  const s = v.trim();
+  if (/^-?\d+,\d+$/.test(s)) return Number(s.replace(',', '.'));
+  return Number(s);
 }
 
 export async function readRange({ token, spreadsheetId, range }: SheetsRequest): Promise<string[][]> {
@@ -121,13 +129,26 @@ export async function createSpreadsheet(token: string, title: string): Promise<s
   return data.spreadsheetId as string;
 }
 
-export async function findSpreadsheet(token: string, title: string): Promise<string | null> {
-  const safeTitle = title.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-  const q = encodeURIComponent(`name='${safeTitle}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`);
-  const res = await fetchWithRetry(`${DRIVE_API}?q=${q}&fields=files(id,name)`, {
-    headers: { Authorization: `Bearer ${token}` },
-  }, 'Drive search');
-  if (!res.ok) throw new Error(`Drive search failed: ${res.status}`);
-  const data = await res.json();
-  return data.files?.[0]?.id ?? null;
+export async function isSpreadsheetTrashed(token: string, spreadsheetId: string): Promise<boolean> {
+  validateSpreadsheetId(spreadsheetId);
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${spreadsheetId}?fields=trashed`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (res.status === 404) return true;
+  if (!res.ok) { console.error('Drive status failed:', res.status); throw new Error(`Error al comprobar hoja (${res.status}).`); }
+  const data = await res.json() as { trashed?: boolean };
+  return data.trashed === true;
+}
+
+export async function getSpreadsheetTitle(token: string, spreadsheetId: string): Promise<string> {
+  validateSpreadsheetId(spreadsheetId);
+  const res = await fetchWithRetry(
+    `${SHEETS_API}/${spreadsheetId}?fields=properties.title`,
+    { headers: { Authorization: `Bearer ${token}` } },
+    'Sheet title',
+  );
+  if (!res.ok) { console.error('Sheet title failed:', res.status); throw new Error(`Error al leer hoja (${res.status}).`); }
+  const data = await res.json() as { properties?: { title?: string } };
+  return data.properties?.title ?? '';
 }
